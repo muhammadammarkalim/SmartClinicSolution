@@ -1,0 +1,223 @@
+﻿@page "/dashboard"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using SmartClinic.Services
+@using SmartClinic.Models
+@using SmartClinic.Data
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IAppointmentService AppointmentService
+@inject NavigationManager NavManager
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Patient Dashboard - MediBook</PageTitle>
+
+<div class="d-flex bg-clinic-layout min-vh-100">
+    <div class="sidebar-panel flex-shrink-0 d-none d-lg-block">
+        <div class="p-4 text-center border-bottom border-translucent">
+            <div class="d-inline-flex align-items-center justify-content-center bg-white rounded-circle text-primary fs-4 fw-bold mb-2" style="width: 36px; height: 36px;">🩺</div>
+            <h5 class="fw-bold text-white mb-0 text-sm tracking-wide">MediBook</h5>
+        </div>
+        
+        <div class="p-3 d-flex align-items-center gap-3 border-bottom border-translucent bg-sidebar-highlight">
+            <div class="avatar-circle-sm d-flex align-items-center justify-content-center flex-shrink-0">👤</div>
+            <div class="overflow-hidden">
+                <h6 class="fw-semibold text-white mb-0 text-xs text-truncate">
+                    @(string.IsNullOrWhiteSpace(currentUserName) || currentUserName.Contains("@") ? "Patient Account" : currentUserName)
+                </h6>
+                <small class="text-white-50 text-xxs">Patient Portal</small>
+            </div>
+        </div>
+
+        <div class="py-3">
+            <a href="dashboard" class="sidebar-link active d-flex align-items-center gap-3">🏠 Dashboard</a>
+            <a href="doctors" class="sidebar-link d-flex align-items-center gap-3">📅 Find Doctors</a>
+            <a href="symptom-checker" class="sidebar-link d-flex align-items-center gap-3">🤖 Symptom Checker</a>
+            
+            <hr class="border-translucent my-2 mx-3" />
+            
+            <a href="appointments" class="sidebar-link d-flex align-items-center gap-3">📋 My Appointments</a>
+            <a href="timeline" class="sidebar-link d-flex align-items-center gap-3">⏳ Health Timeline</a>
+            <a href="prescriptions" class="sidebar-link d-flex align-items-center gap-3">💊 My Prescriptions</a>
+            
+            <hr class="border-translucent my-2 mx-3" />
+            
+            <form action="Account/Logout" method="post" class="w-100 m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sidebar-link d-flex align-items-center gap-3 text-danger-hover w-100 text-start bg-transparent border-0 py-3">
+                    🚪 Logout
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="flex-grow-1 p-4 overflow-auto">
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 bg-white p-3 rounded-3 shadow-sm mb-4 border border-light">
+            <div>
+                <h4 class="fw-bold text-dark mb-1 font-heading">
+                    Welcome, @(string.IsNullOrWhiteSpace(currentUserName) || currentUserName.Contains("@") ? "Patient" : currentUserName) 👋
+                </h4>
+                <p class="text-muted text-xs mb-0">@DateTime.Now.ToString("dddd, d MMMM yyyy")</p>
+            </div>
+            <button class="btn btn-primary-clinic btn-sm fw-semibold px-3 py-2" @onclick='() => NavManager.NavigateTo("/doctors")'>+ Book Appointment</button>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-xl-4">
+                <div class="card bg-white border-0 p-3 shadow-sm rounded-3 h-100 d-flex flex-row align-items-center gap-3 stat-hover">
+                    <div class="metric-icon-box bg-soft-blue text-primary">📅</div>
+                    <div>
+                        <h3 class="fw-bold text-dark mb-0 font-heading">@metrics["Upcoming"]</h3>
+                        <p class="text-muted text-xxs mb-0 font-multiline">Upcoming<br/>Appointments</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-xl-4">
+                <div class="card bg-white border-0 p-3 shadow-sm rounded-3 h-100 d-flex flex-row align-items-center gap-3 stat-hover">
+                    <div class="metric-icon-box bg-soft-green text-success">✅</div>
+                    <div>
+                        <h3 class="fw-bold text-dark mb-0 font-heading">@metrics["Completed"]</h3>
+                        <p class="text-muted text-xxs mb-0 font-multiline">Completed<br/>Visits</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-xl-4">
+                <div class="card bg-white border-0 p-3 shadow-sm rounded-3 h-100 d-flex flex-row align-items-center gap-3 stat-hover">
+                    <div class="metric-icon-box bg-soft-orange text-warning">💊</div>
+                    <div>
+                        <h3 class="fw-bold text-dark mb-0 font-heading">@metrics["Prescriptions"]</h3>
+                        <p class="text-muted text-xxs mb-0 font-multiline">Active<br/>Prescriptions</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xxl-7">
+                <h6 class="fw-bold text-dark mb-3 panel-label">Upcoming Appointments</h6>
+                <div class="d-flex flex-column gap-3">
+                    @if (upcomingAppointments == null)
+                    {
+                        <p class="text-muted small">Loading schedule logs...</p>
+                    }
+                    else if (!upcomingAppointments.Any())
+                    {
+                        <div class="bg-white rounded-3 p-4 text-center shadow-sm border border-dashed">
+                            <p class="text-muted small mb-0">🎉 No medical visits scheduled. Need a checkup?</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var appt in upcomingAppointments)
+                        {
+                            <div class="appointment-row bg-white rounded-3 shadow-sm border-left-primary d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center p-3 gap-2">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="avatar-ellipse-sm d-flex align-items-center justify-content-center flex-shrink-0">👨‍⚕️</div>
+                                    <div>
+                                        <h6 class="fw-semibold text-dark mb-1 text-xs">@(appt.Doctor?.User?.Name ?? "Medical Specialist")</h6>
+                                        <p class="text-muted text-xxs mb-0">@appt.Doctor?.Specialty • @appt.AppointmentDateTime.ToString("ddd, d MMM yyyy | h:mm tt")</p>
+                                    </div>
+                                </div>
+                                <div class="text-sm-end d-flex flex-row flex-sm-column justify-content-between w-100 w-sm-auto align-items-center align-items-sm-end gap-1">
+                                    <span class="badge badge-pill badge-available py-1 px-3">@appt.Status</span>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="col-xxl-5">
+                <h6 class="fw-bold text-dark mb-3 panel-label">Quick Actions</h6>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <a href="symptom-checker" class="card action-grid-card border-0 p-3 shadow-sm bg-soft-blue text-decoration-none d-flex flex-column h-100 justify-content-between">
+                            <span class="fs-4 mb-2">🤖</span>
+                            <div>
+                                <h6 class="fw-semibold text-dark mb-1 text-xs">Check Symptoms</h6>
+                                <p class="text-muted text-xxs mb-0">Get AI diagnosis</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="doctors" class="card action-grid-card border-0 p-3 shadow-sm bg-soft-green text-decoration-none d-flex flex-column h-100 justify-content-between">
+                            <span class="fs-4 mb-2">🔍</span>
+                            <div>
+                                <h6 class="fw-semibold text-dark mb-1 text-xs">Find Specialist</h6>
+                                <p class="text-muted text-xxs mb-0">Search clinic rosters</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-clinic-layout { background-color: #F5F8FF; }
+    .font-heading { font-family: 'Inter', sans-serif; }
+    .sidebar-panel { width: 260px; background-color: #1F4E79; min-height: 100vh; }
+    .border-translucent { border-color: rgba(255, 255, 255, 0.15) !important; }
+    .bg-sidebar-highlight { background-color: rgba(255, 255, 255, 0.04); }
+    .sidebar-link { display: flex; padding: 12px 24px; color: rgba(255, 255, 255, 0.75); font-size: 13px; font-weight: 500; text-decoration: none; border-left: 4px solid transparent; text-align: left; transition: all 0.15s ease; }
+    .sidebar-link:hover, .sidebar-link.active { background-color: rgba(255, 255, 255, 0.15); color: #FFFFFF; }
+    .sidebar-link.active { border-left-color: #0F9EA0; }
+    .text-danger-hover:hover { color: #FF6B6B !important; }
+    .avatar-circle-sm { width: 40px; height: 40px; background-color: #D6E4F0; border-radius: 50%; font-size: 20px; }
+    .avatar-ellipse-sm { width: 44px; height: 44px; background-color: #D6E4F0; border-radius: 50%; font-size: 22px; }
+    .text-xs { font-size: 14px; }
+    .text-xxs { font-size: 12px; }
+    .panel-label { font-size: 16px; color: #1A1A2E; }
+    .font-multiline { line-height: 1.3; }
+    .btn-primary-clinic { background-color: #2E75B6; color: #FFFFFF; border-radius: 6px; font-size: 12px; border: none; }
+    .btn-primary-clinic:hover { background-color: #1F4E79; }
+    .metric-icon-box { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .bg-soft-blue { background-color: #D6E4F0; }
+    .bg-soft-green { background-color: #E8F8EF; }
+    .bg-soft-orange { background-color: #FFF3E0; }
+    .stat-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .stat-hover:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(31,78,121,0.06) !important; }
+    .appointment-row { border: 1px solid #E5E7EB; border-left: 4px solid #2E75B6 !important; transition: transform 0.15s ease; }
+    .action-grid-card { border-radius: 12px; min-height: 100px; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .action-grid-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(15,23,42,0.05) !important; }
+    .badge-pill { border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-available { background-color: #E8F8EF; color: #1A9E52; }
+</style>
+
+@code {
+    private string currentUserName = "Guest Patient";
+    private List<Appointment>? upcomingAppointments;
+    private Dictionary<string, int> metrics = new() { { "Upcoming", 0 }, { "Completed", 0 }, { "Prescriptions", 0 } };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            var userIdClaim = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (userIdClaim != null)
+            {
+                string patientId = userIdClaim.Value;
+
+                var dbUser = await DbContext.Users.FindAsync(patientId);
+                if (dbUser != null && !string.IsNullOrWhiteSpace(dbUser.Name))
+                {
+                    currentUserName = dbUser.Name;
+                }
+                else
+                {
+                    var nameClaim = user.FindFirst("Name") ?? user.FindFirst(System.Security.Claims.ClaimTypes.Name);
+                    currentUserName = nameClaim?.Value ?? user.Identity.Name ?? "Patient";
+                }
+
+                metrics = await AppointmentService.GetPatientDashboardMetricsAsync(patientId);
+                upcomingAppointments = await AppointmentService.GetUpcomingAppointmentsAsync(patientId);
+            }
+        }
+    }
+}

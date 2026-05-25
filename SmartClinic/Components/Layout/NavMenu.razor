@@ -1,0 +1,127 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SmartClinic.Models
+@inject NavigationManager NavManager
+@rendermode InteractiveServer
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top py-2">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center fw-bold text-primary-clinic" href="">
+            <span class="me-2 fs-4">🩺</span>MediBook
+        </a>
+        
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center">
+                <AuthorizeView>
+                    <NotAuthorized>
+                        <li class="nav-item"><a class="nav-link" href="">Home</a></li>
+                        <li class="nav-item"><a class="nav-link" href="doctors">Doctors</a></li>
+                        <li class="nav-item"><a class="nav-link" href="symptom-checker">Symptom Checker</a></li>
+                    </NotAuthorized>
+                    <Authorized>
+                        @if (context.User.IsInRole("Patient"))
+                        {
+                            <li class="nav-item"><a class="nav-link" href="">Home</a></li>
+                            <li class="nav-item"><a class="nav-link" href="doctors">Doctors</a></li>
+                            <li class="nav-item"><a class="nav-link" href="symptom-checker">Symptom Checker</a></li>
+                            <li class="nav-item"><a class="nav-link fw-bold text-success" href="dashboard">Patient Dashboard</a></li>
+                        }
+                        else if (context.User.IsInRole("Doctor"))
+                        {
+                            <li class="nav-item"><a class="nav-link fw-bold text-primary" href="doctor/dashboard">Doctor Dashboard</a></li>
+                            <li class="nav-item"><a class="nav-link" href="doctor/schedule">My Schedule</a></li>
+                        }
+                        else if (context.User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item"><a class="nav-link fw-bold text-danger" href="admin/dashboard">Admin Dashboard</a></li>
+                            <li class="nav-item"><a class="nav-link" href="admin/doctors">Manage Doctors</a></li>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            </ul>
+
+            <div class="d-flex align-items-center gap-2 mt-2 mt-lg-0">
+                <AuthorizeView>
+                    <NotAuthorized>
+                        <a href="login" class="btn btn-outline-primary-clinic btn-sm px-3 fw-bold">Login</a>
+                        <a href="register" class="btn btn-primary-clinic btn-sm px-3 fw-bold text-white">Register</a>
+                    </NotAuthorized>
+                    
+                    <Authorized>
+                        <div class="dropdown">
+                            <button class="btn btn-light dropdown-toggle btn-sm border fw-bold d-flex align-items-center gap-1" type="button" id="userMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                                👤 @context.User.Identity?.Name
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userMenuButton">
+                                @if (context.User.IsInRole("Patient"))
+                                {
+                                    <li><a class="dropdown-item small" href="my-appointments">My Appointments</a></li>
+                                    <li><a class="dropdown-item small" href="timeline">Health Timeline</a></li>
+                                    <li><a class="dropdown-item small" href="prescriptions">My Prescriptions</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                }
+                                <li>
+                                    <form action="Account/Logout" method="post" class="w-100">
+                                        <AntiforgeryToken />
+                                        <input type="hidden" name="ReturnUrl" value="login" />
+                                        <button type="submit" class="dropdown-item small text-danger fw-bold w-100 text-start m-0 border-0 bg-transparent">
+                                            🚪 Sign Out
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<style>
+    .text-primary-clinic {
+        color: #1F4E79 !important;
+    }
+    .btn-primary-clinic {
+        background-color: #1F4E79 !important;
+        border: 1px solid #1F4E79 !important;
+    }
+    .btn-primary-clinic:hover {
+        background-color: #2E75B6 !important;
+        border-color: #2E75B6 !important;
+    }
+    .btn-outline-primary-clinic {
+        color: #1F4E79 !important;
+        border: 1px solid #1F4E79 !important;
+        background: transparent !important;
+    }
+    .btn-outline-primary-clinic:hover {
+        background-color: #F5F8FF !important;
+        color: #2E75B6 !important;
+        border-color: #2E75B6 !important;
+    }
+
+    @@media (min-width: 992px) {
+        .navbar-nav {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 10px !important;
+        }
+    }
+
+    .nav-link {
+        color: #2C3E50 !important;
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+        transition: color 0.15s ease-in-out !important;
+    }
+    .nav-link:hover {
+        color: #2E75B6 !important;
+    }
+</style>

@@ -1,0 +1,238 @@
+﻿@page "/doctors"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+
+@using SmartClinic.Services
+@using SmartClinic.Models
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IDoctorService DoctorService
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Find Doctors - MediBook</PageTitle>
+
+<div class="container py-4" style="margin-top: 20px; margin-bottom: 60px;">
+    <div class="row g-4">
+        
+        <div class="col-lg-3">
+            <div class="filter-sidebar p-4 bg-white shadow-sm border-0">
+                <h5 class="fw-bold text-dark mb-3" style="font-size: 16px;">Filter by Specialty</h5>
+                
+                <div class="d-flex flex-column gap-2">
+                    <button type="button" 
+                            class="btn filter-group-btn text-start @(selectedSpecialty == "All Specialties" ? "active" : "")"
+                            @onclick='() => ApplySpecialtyFilter("All Specialties")'>
+                        🔍 All Specialties
+                    </button>
+
+                    @if (specialties != null)
+                    {
+                        @foreach (var spec in specialties)
+                        {
+                            <button type="button" 
+                                    class="btn filter-group-btn text-start @(selectedSpecialty == spec.Name ? "active" : "")"
+                                    @onclick="() => ApplySpecialtyFilter(spec.Name)">
+                                <span class="me-2">@spec.Icon</span> @spec.Name
+                            </button>
+                        }
+                    }
+                </div>
+
+                <hr class="text-muted my-4" />
+                <button class="btn btn-reset-filters w-100 fw-semibold py-2" @onclick="ResetAllFilters">
+                    Clear All Filters
+                </button>
+            </div>
+        </div>
+
+        <div class="col-lg-9">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-4 gap-3">
+                <div>
+                    <h4 class="fw-bold text-dark mb-1" style="font-size: 22px;">Available Medical Practitioners</h4>
+                    <p class="text-muted small mb-0">
+                        @if (!string.IsNullOrEmpty(currentSearchTerm))
+                        {
+                            <span>Showing results for "<strong>@currentSearchTerm</strong>"</span>
+                        }
+                        else
+                        {
+                            <span>Showing all verified consultants in <strong>@selectedSpecialty</strong></span>
+                        }
+                    </p>
+                </div>
+                
+                <div class="input-group dashboard-search-box shadow-sm bg-white p-1 rounded-3" style="max-width: 320px;">
+                    <span class="input-group-text bg-transparent border-0 text-muted ps-3">🔍</span>
+                    <input type="text" 
+                           class="form-control border-0 bg-transparent shadow-none" 
+                           placeholder="Search doctor names..." 
+                           @bind-value="currentSearchTerm" 
+                           @bind-value:event="oninput"
+                           @onkeyup="TriggerLiveTextQuery" />
+                </div>
+            </div>
+
+            @if (filteredDoctors == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2 small">Querying core SQL index arrays...</p>
+                </div>
+            }
+            else if (!filteredDoctors.Any())
+            {
+                <div class="bg-white text-center py-5 rounded-3 shadow-sm border border-light px-4">
+                    <span class="fs-1 d-block mb-2">📋</span>
+                    <h5 class="fw-bold text-dark mb-1">No Matching Doctors Discovered</h5>
+                    <p class="text-muted small mb-0">Try adjusting your filters or search keywords to locate an alternative professional profile.</p>
+                </div>
+            }
+            else
+            {
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+                    @foreach (var doctor in filteredDoctors)
+                    {
+                        <div class="col">
+                            <div class="card doctor-catalog-card bg-white border-0 p-4 shadow-sm h-100 d-flex flex-column justify-content-between">
+                                <div class="d-flex align-items-start gap-3 mb-3">
+                                    <div class="avatar-ellipse d-flex align-items-center justify-content-center flex-shrink-0">👨‍⚕️</div>
+                                    <div>
+                                        <h5 class="fw-bold text-dark mb-1" style="font-size: 16px;">@(doctor.User?.Name ?? "Medical Specialist")</h5>
+                                        <span class="badge badge-specialty-pill mb-2">@doctor.Specialty</span>
+                                        <p class="text-muted mb-2 mb-0" style="font-size: 12px; line-height: 1.4;">
+                                            <strong>Qualifications:</strong> @doctor.Qualification<br />
+                                            <strong>Experience:</strong> Senior Consultant
+                                        </p>
+                                        <div class="d-flex align-items-center gap-1 text-warning font-semibold small">
+                                            ⭐ @doctor.Rating.ToString("F1") <span class="text-muted font-normal">(Verified)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pt-3 border-top mt-auto d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <span class="text-muted d-block" style="font-size: 11px; text-transform: uppercase;">Fee</span>
+                                        <span class="fw-bold text-primary-clinic" style="font-size: 16px;">Rs. @doctor.ConsultationFee.ToString("N0")</span>
+                                    </div>
+                                    <button class="btn btn-book-appointment fw-semibold px-4 py-2" @onclick="RedirectToBooking">
+                                        Book Appointment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+    </div>
+</div>
+
+<style>
+    body { background-color: #F5F8FF !important; font-family: 'Inter', sans-serif !important; }
+    .text-primary-clinic { color: #1F4E79 !important; }
+    .filter-sidebar { border-radius: 12px; }
+    .filter-group-btn { background: transparent; border: none; color: #4B5563; font-size: 13px; font-weight: 500; padding: 10px 14px; border-radius: 8px; width: 100%; transition: all 0.15s ease; }
+    .filter-group-btn:hover { background-color: #F5F8FF; color: #1F4E79; }
+    .filter-group-btn.active { background-color: #EBF3FB !important; color: #2E75B6 !important; font-weight: 600; }
+    .btn-reset-filters { background-color: #F3F4F6; color: #4B5563; font-size: 12px; border: none; border-radius: 8px; }
+    .btn-reset-filters:hover { background-color: #E5E7EB; color: #111827; }
+    .dashboard-search-box { border: 1px solid #E5E7EB; width: 100%; }
+    .dashboard-search-box input { font-size: 13px; color: #1A1A2E; }
+    .doctor-catalog-card { border-radius: 16px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .doctor-catalog-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(31,78,121,0.08) !important; }
+    .avatar-ellipse { width: 56px; height: 56px; background-color: #D6E4F0; border-radius: 50%; font-size: 26px; }
+    .badge-specialty-pill { background-color: #EBF3FB; color: #2E75B6; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
+    .btn-book-appointment { background-color: #2E75B6; color: #FFFFFF; font-size: 13px; border-radius: 8px; border: none; transition: background-color 0.1s ease; }
+    .btn-book-appointment:hover { background-color: #1F4E79; color: #FFFFFF; }
+</style>
+
+@code {
+    private List<Specialty>? specialties;
+    private List<Doctor>? allDoctors;
+    private List<Doctor>? filteredDoctors;
+
+    private string selectedSpecialty = "All Specialties";
+    private string currentSearchTerm = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        specialties = await DoctorService.GetSpecialtiesAsync();
+        allDoctors = await DoctorService.GetDoctorsAsync();
+
+        var uri = NavManager.ToAbsoluteUri(NavManager.Uri);
+        
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("search", out var searchVal))
+        {
+            currentSearchTerm = searchVal.ToString();
+        }
+
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("specialty", out var specialtyVal))
+        {
+            selectedSpecialty = specialtyVal.ToString();
+        }
+
+        FilterDoctorCollection();
+    }
+
+    private void ApplySpecialtyFilter(string specialtyName)
+    {
+        selectedSpecialty = specialtyName;
+        currentSearchTerm = string.Empty; 
+        FilterDoctorCollection();
+    }
+
+    private void TriggerLiveTextQuery()
+    {
+        FilterDoctorCollection();
+    }
+
+    private void FilterDoctorCollection()
+    {
+        if (allDoctors == null) return;
+
+        var query = allDoctors.AsQueryable();
+
+        if (!string.IsNullOrEmpty(selectedSpecialty) && selectedSpecialty != "All Specialties")
+        {
+            query = query.Where(d => d.Specialty.Equals(selectedSpecialty, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentSearchTerm))
+        {
+            var searchLower = currentSearchTerm.ToLower();
+            query = query.Where(d => 
+                (d.User != null && d.User.Name.ToLower().Contains(searchLower)) ||
+                d.Specialty.ToLower().Contains(searchLower) ||
+                d.Qualification.ToLower().Contains(searchLower));
+        }
+
+        filteredDoctors = query.ToList();
+    }
+
+    private void ResetAllFilters()
+    {
+        selectedSpecialty = "All Specialties";
+        currentSearchTerm = string.Empty;
+        FilterDoctorCollection();
+    }
+
+    // UPDATED: Added complete asynchronous identity gate verification check 
+    private async Task RedirectToBooking()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            // Logged In: Let user pass smoothly to dashboard appointment setup
+            NavManager.NavigateTo("/dashboard");
+        }
+        else
+        {
+            // Guest Account: Reroute target to register/login system instantly
+            NavManager.NavigateTo("/login");
+        }
+    }
+}

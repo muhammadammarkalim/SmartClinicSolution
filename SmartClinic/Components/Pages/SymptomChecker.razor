@@ -1,0 +1,309 @@
+﻿@page "/symptom-checker"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+
+<PageTitle>AI Symptom Checker - MediBook</PageTitle>
+
+<div class="page-header text-white d-flex flex-column justify-content-center">
+    <div class="container px-md-5">
+        <h1 class="fw-bold mb-1 header-title">🤖 AI Symptom Checker</h1>
+        <p class="mb-0 opacity-80 header-subtitle">Describe your symptoms and get an instant doctor recommendation</p>
+    </div>
+</div>
+
+<div class="container px-md-5" style="margin-top: 40px; margin-bottom: 60px;">
+    <div class="row g-4">
+        
+        <div class="col-lg-8">
+            <div class="input-panel p-4 border-0 shadow-sm h-100">
+                <h4 class="fw-bold text-dark mb-1 sub-panel-title">Tell us how you're feeling</h4>
+                <p class="text-muted small mb-4">Select your symptoms below or type them in the box</p>
+                
+                <h6 class="fw-semibold text-dark mb-3 section-label">Common Symptoms</h6>
+                
+                <div class="row row-cols-2 row-cols-sm-4 g-3 mb-4">
+                    @foreach (var symptom in commonSymptoms)
+                    {
+                        <div class="col">
+                            <button type="button" 
+                                    class="btn w-100 symptom-chip @(symptom.IsSelected ? "selected" : "")" 
+                                    @onclick="() => ToggleSymptom(symptom)">
+                                @(symptom.IsSelected ? $"✓ {symptom.Name}" : symptom.Name)
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="fw-semibold text-dark mb-2 section-label">Or describe in your own words</h6>
+                    <div class="text-input-wrapper p-3">
+                        <textarea class="form-control border-0 bg-transparent p-0 shadow-none custom-textarea" 
+                                  rows="3" 
+                                  placeholder="e.g. I have had fever for 2 days with body aches and sore throat..."></textarea>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-3 mb-4 pt-1">
+                    <button class="btn btn-analyze text-white fw-semibold d-inline-flex align-items-center gap-2">
+                        🤖 Analyze Symptoms
+                    </button>
+                    <button class="btn btn-clear-all fw-semibold" @onclick="ClearSelections">
+                        Clear All
+                    </button>
+                </div>
+
+                <div class="disclaimer-box p-3 border-0 d-flex align-items-start gap-2">
+                    <span class="fs-5">⚠️</span>
+                    <p class="mb-0 small disclaimer-text">
+                        This is for guidance only. Always consult a real doctor for diagnosis.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="results-panel p-4 border-0 shadow-sm h-100">
+                <h5 class="fw-bold text-dark mb-4 panel-main-label">Your Result</h5>
+
+                <div class="ai-result-card p-4 border-0 mb-4">
+                    <span class="recommendation-lbl d-block mb-1">🩺 Recommended Doctor</span>
+                    <h3 class="fw-bold text-primary-clinic mb-3 doctor-type">General Physician</h3>
+                    <span class="badge badge-pill badge-moderate mb-3">Moderate Urgency</span>
+                    <p class="mb-0 text-muted small-lbl">Book within 24 hours</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="fw-semibold text-dark mb-2 section-label">AI Advice</h6>
+                    <div class="advice-box p-3 border-0">
+                        <p class="mb-0 text-muted small-text">
+                            Based on your symptoms (Fever, Headache, Cough), you likely have a viral infection. Rest, stay hydrated, and see a General Physician if symptoms persist beyond 3 days.
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <h6 class="fw-semibold text-dark mb-3 section-label">Available Doctors</h6>
+                    <div class="d-flex flex-column gap-3">
+                        
+                        <div class="matched-doctor-item p-2 d-flex align-items-center justify-content-between border-0 shadow-sm">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="mini-avatar-ellipse d-flex align-items-center justify-content-center">👨‍⚕️</div>
+                                <div>
+                                    <h6 class="fw-semibold text-dark mb-0 mini-doc-name">Dr. Sarah Ahmed</h6>
+                                    <span class="text-muted mini-doc-meta">Gen. Physician • ⭐ 4.9</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-mini-book btn-sm text-white fw-semibold px-3">Book</button>
+                        </div>
+
+                        <div class="matched-doctor-item p-2 d-flex align-items-center justify-content-between border-0 shadow-sm">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="mini-avatar-ellipse d-flex align-items-center justify-content-center">👨‍⚕️</div>
+                                <div>
+                                    <h6 class="fw-semibold text-dark mb-0 mini-doc-name">Dr. Ali Raza</h6>
+                                    <span class="text-muted mini-doc-meta">Gen. Physician • ⭐ 4.8</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-mini-book btn-sm text-white fw-semibold px-3">Book</button>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    /* TYPOGRAPHY AND CORE STYLING VARIABLES */
+    body {
+        background-color: #F5F8FF !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .text-primary-clinic { color: #1F4E79 !important; }
+
+    /* FIGMA SCREEN LAYOUT SPECIFICATIONS */
+    .page-header {
+        background-color: #1F4E79;
+        height: 100px;
+        padding-left: 80px;
+        padding-right: 80px;
+    }
+    .header-title { font-size: 28px; }
+    .header-subtitle { font-size: 14px; }
+
+    /* CONTAINER PANEL COMPONENTS */
+    .input-panel, .results-panel {
+        background-color: #FFFFFF;
+        border-radius: 16px;
+    }
+    .sub-panel-title { font-size: 20px; color: #1A1A2E; }
+    .panel-main-label { font-size: 18px; color: #1A1A2E; }
+    .section-label { font-size: 13px; }
+
+    /* CLICKABLE SYMPTOM CHIPS UI RULES */
+    .symptom-chip {
+        background-color: #F0F0F0;
+        color: #6B7280;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 8px 12px;
+        border-radius: 17px;
+        border: 2px solid transparent;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: all 0.15s ease;
+    }
+    .symptom-chip:hover {
+        border-color: #2E75B6;
+        color: #1A1A2E;
+    }
+    .symptom-chip.selected {
+        background-color: #2E75B6 !important;
+        color: #FFFFFF !important;
+        font-weight: 600;
+    }
+
+    /* CUSTOM FREE TEXT DESCRIPTION FIELD */
+    .text-input-wrapper {
+        background-color: #F5F8FF;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+    }
+    .custom-textarea {
+        font-size: 13px;
+        resize: none;
+    }
+    .custom-textarea::placeholder {
+        color: rgba(107, 114, 128, 0.6);
+    }
+
+    /* PRIMARY WORKFLOW EXECUTION BUTTONS */
+    .btn-analyze {
+        background-color: #2E75B6;
+        border-radius: 10px;
+        font-size: 15px;
+        height: 52px;
+        padding: 0 24px;
+        border: none;
+    }
+    .btn-analyze:hover { background-color: #1F4E79; }
+    
+    .btn-clear-all {
+        background-color: #F5F8FF;
+        color: #6B7280;
+        font-size: 12px;
+        height: 30px;
+        padding: 0 16px;
+        border-radius: 6px;
+        border: none;
+    }
+    .btn-clear-all:hover { background-color: #E5E7EB; color: #1A1A2E; }
+
+    /* DISCLAIMER AND WARNING CHIPS BLOCK */
+    .disclaimer-box {
+        background-color: #FFF3E0;
+        border-radius: 8px;
+        max-width: 760px;
+    }
+    .disclaimer-text {
+        color: #E07B00;
+        font-weight: 500;
+    }
+
+    /* FIGMA RECOMMENDED RESULTS TOP MODULE CARD */
+    .ai-result-card {
+        background-color: #EBF3FB;
+        border-radius: 12px;
+    }
+    .recommendation-lbl { font-size: 12px; color: #6B7280; }
+    .doctor-type { font-size: 22px; }
+    .small-lbl { font-size: 12px; }
+
+    /* ACTION PILLS FRAMEWORK */
+    .badge-pill {
+        border-radius: 15px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 14px;
+        display: inline-block;
+    }
+    .badge-moderate {
+        background-color: #FFF3E0;
+        color: #E07B00;
+    }
+
+    /* AUTOMATED ADVICE BOX CONTEXT FILTER */
+    .advice-box {
+        background-color: #F5F8FF;
+        border-radius: 8px;
+    }
+    .small-text { font-size: 12px; line-height: 1.6; }
+
+    /* DIRECTORY SUB-CARD TEMPLATES */
+    .matched-doctor-item {
+        background-color: #F5F8FF;
+        border-radius: 8px;
+        height: 56px;
+    }
+    .mini-avatar-ellipse {
+        width: 36px;
+        height: 36px;
+        background-color: #D6E4F0;
+        border-radius: 50%;
+        font-size: 20px;
+    }
+    .mini-doc-name { font-size: 13px; }
+    .mini-doc-meta { font-size: 11px; }
+    
+    .btn-mini-book {
+        background-color: #2E75B6;
+        border-radius: 6px;
+        font-size: 11px;
+        height: 28px;
+        border: none;
+    }
+    .btn-mini-book:hover { background-color: #1F4E79; }
+</style>
+
+@code {
+    // Structural wrapper class representing interactive selectable state values
+    private class SymptomModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public bool IsSelected { get; set; }
+    }
+
+    // Explicit dummy mock array populating chip values inside layout scope
+    private List<SymptomModel> commonSymptoms = new()
+    {
+        new() { Name = "Fever", IsSelected = true },
+        new() { Name = "Headache", IsSelected = true },
+        new() { Name = "Cough", IsSelected = true },
+        new() { Name = "Sore Throat", IsSelected = false },
+        new() { Name = "Chest Pain", IsSelected = false },
+        new() { Name = "Fatigue", IsSelected = false },
+        new() { Name = "Nausea", IsSelected = false },
+        new() { Name = "Back Pain", IsSelected = false },
+        new() { Name = "Skin Rash", IsSelected = false },
+        new() { Name = "Eye Pain", IsSelected = false },
+        new() { Name = "Joint Pain", IsSelected = false },
+        new() { Name = "Shortness of Breath", IsSelected = false }
+    };
+
+    private void ToggleSymptom(SymptomModel symptom)
+    {
+        symptom.IsSelected = !symptom.IsSelected;
+    }
+
+    private void ClearSelections()
+    {
+        foreach (var symptom in commonSymptoms)
+        {
+            symptom.IsSelected = false;
+        }
+    }
+}

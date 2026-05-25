@@ -1,0 +1,207 @@
+﻿@page "/login"
+@layout SmartClinic.Components.Layout.MainLayout
+@using Microsoft.AspNetCore.Identity
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Http
+@using SmartClinic.Models
+@inject NavigationManager NavManager
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@rendermode InteractiveServer
+
+<PageTitle>Login - MediBook</PageTitle>
+
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card shadow-lg border-0 p-4" style="max-width: 420px; width: 100%; border-radius: 16px;">
+        
+        <div class="text-center mb-4">
+            <div class="d-inline-flex align-items-center justify-content-center bg-primary text-white rounded-circle mb-2" style="width: 60px; height: 60px; background-color: #1F4E79 !important;">
+                <span class="fs-2">🩺</span>
+            </div>
+            <h3 class="fw-bold mt-2" style="color: #1F4E79;">MediBook</h3>
+            <p class="text-muted small">Smart Clinic Booking System</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger d-flex align-items-center small py-2" role="alert">
+                <span>⚠️ @errorMessage</span>
+            </div>
+        }
+
+        <EditForm Model="loginModel" OnValidSubmit="HandleLoginSubmit" FormName="nativeLoginForm" method="post">
+            <DataAnnotationsValidator />
+            <AntiforgeryToken />
+
+            <div class="mb-3">
+                <label class="form-label font-weight-bold small text-secondary">Email Address</label>
+                <InputText @bind-Value="loginModel.Email" class="form-control py-2" placeholder="name@example.com" type="email" />
+                <ValidationMessage For="() => loginModel.Email" class="text-danger small" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label font-weight-bold small text-secondary">Password</label>
+                <InputText @bind-Value="loginModel.Password" class="form-control py-2" placeholder="••••••" type="password" />
+                <ValidationMessage For="() => loginModel.Password" class="text-danger small" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="loginModel.RememberMe" class="form-check-input" id="rememberMeCheck" />
+                <label class="form-check-label small text-muted" for="rememberMeCheck">
+                    Remember me on this device
+                </label>
+            </div>
+
+            <button type="submit" class="btn text-white w-100 py-2 fw-bold mb-3 shadow-sm btn-login" disabled="@isProcessing">
+                @if (isProcessing)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span>Verifying...</span>
+                }
+                else
+                {
+                    <span>Sign In</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="text-center mt-2">
+            <p class="small text-muted mb-0">Don't have an account? <a href="/register" class="fw-bold text-decoration-none" style="color: #2E75B6;">Register here</a></p>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        background-color: #F5F8FF !important;
+    }
+    .btn-login {
+        background-color: #1F4E79;
+        border-radius: 8px;
+        transition: background-color 0.2s ease;
+    }
+    .btn-login:hover {
+        background-color: #2E75B6;
+    }
+    .form-control:focus {
+        border-color: #2E75B6;
+        box-shadow: 0 0 0 0.25rem rgba(46, 117, 182, 0.15);
+    }
+</style>
+
+@code {
+    // CRITICAL FIX: Explicitly supply data parameters from form mapping to persist values
+    [SupplyParameterFromForm(FormName = "nativeLoginForm")]
+    private LoginInputModel loginModel { get; set; } = new();
+
+    private string? errorMessage;
+    private bool isProcessing = false;
+
+    [CascadingParameter]
+    private HttpContext? MyHttpContext { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (MyHttpContext?.User?.Identity?.IsAuthenticated == true)
+        {
+            RedirectUserBasedOnRole(MyHttpContext.User);
+        }
+    }
+
+    private async Task HandleLoginSubmit()
+    {
+        isProcessing = true;
+        errorMessage = null;
+
+        try
+        {
+            var user = await UserManager.FindByEmailAsync(loginModel.Email);
+            if (user == null)
+            {
+                errorMessage = "Invalid email or password.";
+                isProcessing = false;
+                return;
+            }
+
+            // In pure interactive context, push processing straight to our security bridge
+            if (MyHttpContext == null)
+            {
+                NavManager.NavigateTo($"/api/auth/login?email={Uri.EscapeDataString(loginModel.Email)}&password={Uri.EscapeDataString(loginModel.Password)}&rememberme={loginModel.RememberMe}&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}", forceLoad: true);
+                return;
+            }
+
+            var result = await SignInManager.PasswordSignInAsync(user.UserName!, loginModel.Password, loginModel.RememberMe, lockoutOnFailure: true);
+            
+            if (result.Succeeded)
+            {
+                RedirectUserBasedOnRole(user);
+            }
+            else if (result.IsLockedOut)
+            {
+                errorMessage = "This account has been temporarily locked due to excessive failed attempts.";
+            }
+            else
+            {
+                errorMessage = "Invalid email or password. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An unexpected server error occurred: " + ex.Message;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void RedirectUserBasedOnRole(System.Security.Claims.ClaimsPrincipal principal)
+    {
+        var role = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        NavigateToDashboard(role);
+    }
+
+    private void RedirectUserBasedOnRole(AppUser user)
+    {
+        NavigateToDashboard(user.Role);
+    }
+
+    private void NavigateToDashboard(string? role)
+    {
+        if (!string.IsNullOrEmpty(ReturnUrl))
+        {
+            NavManager.NavigateTo(ReturnUrl, forceLoad: true);
+            return;
+        }
+
+        switch (role)
+        {
+            case "Admin":
+                NavManager.NavigateTo("/admin/dashboard", forceLoad: true);
+                break;
+            case "Doctor":
+                NavManager.NavigateTo("/doctor/dashboard", forceLoad: true);
+                break;
+            case "Patient":
+            default:
+                NavManager.NavigateTo("/dashboard", forceLoad: true);
+                break;
+        }
+    }
+
+    public class LoginInputModel
+    {
+        [Required(ErrorMessage = "Email address is required.")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; } = false;
+    }
+}
+

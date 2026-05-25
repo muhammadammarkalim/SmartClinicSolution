@@ -1,0 +1,199 @@
+﻿@page "/"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using SmartClinic.Services
+@inject IDoctorService DoctorService
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Home - MediBook</PageTitle>
+
+<div class="hero-section text-white position-relative shadow-sm">
+    <div class="container h-100 position-relative">
+        <div class="row align-items-center pt-4" style="min-height: 352px;">
+            <div class="col-lg-7 text-start ms-md-4">
+                <h1 class="hero-title fw-bold mb-3">Your Health, Our Priority</h1>
+                <p class="hero-subtext mb-4 opacity-85">Book appointments with top doctors instantly. AI-powered symptom checker helps you find the right specialist in seconds.</p>
+                
+                <div class="search-box-container p-2 bg-white d-flex align-items-center justify-content-between shadow-sm">
+                    <div class="d-flex align-items-center flex-grow-1 px-2">
+                        <span class="text-muted me-2">🔍</span>
+                        <input type="text" 
+                               class="form-control border-0 bg-transparent p-0 shadow-none search-placeholder text-dark" 
+                               placeholder="Search doctors, specialties, symptoms..." 
+                               @bind-value="searchQuery" 
+                               @onkeydown="HandleKeyDown" />
+                    </div>
+                    <button class="btn btn-search text-white fw-semibold px-4 py-2" @onclick="ExecuteSearch">Search</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row stats-row-position text-start ms-md-4 g-4 g-md-0">
+            <div class="col-6 col-md-3"><div class="stat-num fw-bold">500+</div><div class="stat-lbl opacity-75">Doctors</div></div>
+            <div class="col-6 col-md-3"><div class="stat-num fw-bold">50k+</div><div class="stat-lbl opacity-75">Patients</div></div>
+            <div class="col-6 col-md-3"><div class="stat-num fw-bold">20+</div><div class="stat-lbl opacity-75">Specialties</div></div>
+            <div class="col-6 col-md-3"><div class="stat-num fw-bold">4.9★</div><div class="stat-lbl opacity-75">Rating</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="container mx-auto" style="margin-top: 100px; margin-bottom: 70px;">
+    <div class="ms-md-4 mb-4">
+        <h2 class="section-title fw-bold mb-1">Browse by Specialty</h2>
+        <p class="section-subtext">Find the right doctor for your needs</p>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4 px-md-4 justify-content-center">
+        @if (specialties == null)
+        {
+            <p class="text-muted ps-3">Loading specialties...</p>
+        }
+        else
+        {
+            @foreach (var spec in specialties.Take(6))
+            {
+                <div class="col" style="cursor: pointer;" @onclick="() => FilterBySpecialty(spec.Name)">
+                    <div class="card h-100 card-clinic specialty-card p-3 border-0">
+                        <div class="card-strip"></div>
+                        <div class="d-flex align-items-center gap-3 mt-2 h-100">
+                            <div class="fs-2 px-2">@spec.Icon</div>
+                            <div>
+                                <h5 class="card-title fw-semibold mb-1">@spec.Name</h5>
+                                <p class="text-muted small mb-0">Explore Specialists →</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="container mx-auto mb-5">
+    <div class="ms-md-4 mb-4">
+        <h2 class="section-title fw-bold mb-1">Top Rated Doctors</h2>
+        <p class="section-subtext">Book an appointment with our best specialists</p>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4 px-md-4">
+        @if (topDoctors == null)
+        {
+            <p class="text-muted ps-3">Loading featured practitioners...</p>
+        }
+        else if (!topDoctors.Any())
+        {
+            <p class="text-muted ps-3">No active practitioners discovered in database storage.</p>
+        }
+        else
+        {
+            @foreach (var doctor in topDoctors.Take(4))
+            {
+                <div class="col">
+                    <div class="card card-clinic doctor-card border-0 p-3 h-100 d-flex flex-column justify-content-between">
+                        <div class="d-flex align-items-start gap-3 mb-3">
+                            <div class="avatar-circle-frame d-flex align-items-center justify-content-center flex-shrink-0">👨‍⚕️</div>
+                            <div>
+                                <h6 class="fw-semibold text-dark mb-1">@(doctor.User?.Name ?? "Medical Consultant")</h6>
+                                <p class="doc-meta-label text-muted mb-1">@doctor.Specialty</p>
+                                <p class="rating-lbl mb-1">⭐ @doctor.Rating.ToString("F1")</p>
+                                <p class="doc-meta-label text-muted mb-0">@doctor.Qualification</p>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between gap-2 pt-2 border-top">
+                            <button class="btn btn-book text-white btn-sm fw-semibold px-3 py-2" @onclick="() => BookDoctor(doctor.DoctorID)">Book Now</button>
+                            <span class="badge badge-pill badge-available px-3 py-2">@(doctor.IsAvailable ? "Available" : "Away")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    body { background-color: #F5F8FF !important; font-family: 'Inter', sans-serif !important; }
+    .hero-section { background: linear-gradient(135deg, #1F4E79 0%, #0D2137 100%); min-height: 420px; padding-left: 80px; padding-right: 80px; }
+    .hero-title { font-size: 46px; color: #FFFFFF; margin-top: 50px; }
+    .hero-subtext { font-size: 18px; color: rgba(255, 255, 255, 0.85); max-width: 520px; }
+    .search-box-container { max-width: 580px; height: 64px; border-radius: 12px; }
+    .search-placeholder::placeholder { color: #6B7280; font-size: 15px; }
+    .btn-search { background-color: #0F9EA0; border-radius: 8px; font-size: 15px; white-space: nowrap; }
+    .btn-search:hover { background-color: #1F4E79; }
+    .stats-row-position { margin-top: 40px; padding-bottom: 30px; }
+    .stat-num { font-size: 22px; color: #FFFFFF; }
+    .stat-lbl { font-size: 13px; color: rgba(255, 255, 255, 0.75); }
+    .section-title { font-size: 22px; color: #1A1A2E; }
+    .section-subtext { font-size: 14px; color: #6B7280; }
+    .card-clinic { background-color: #FFFFFF; box-shadow: 0 2px 12px rgba(31,78,121,0.08); transition: all 0.2s ease; }
+    .card-clinic:hover { box-shadow: 0 8px 24px rgba(31,78,121,0.15); transform: translateY(-2px); }
+    .specialty-card { border-radius: 12px; height: 90px !important; position: relative; overflow: hidden; }
+    .card-strip { position: absolute; top: 0; left: 0; right: 0; height: 4px; background-color: #2E75B6; }
+    .card-title { font-size: 14px; color: #1A1A2E; }
+    .doctor-card { border-radius: 12px; min-height: 150px; }
+    .avatar-circle-frame { width: 60px; height: 60px; background-color: #D6E4F0; border-radius: 50%; font-size: 28px; }
+    .doc-meta-label { font-size: 12px; }
+    .rating-lbl { font-size: 12px; color: #E07B00; font-weight: 500; }
+    .btn-book { background-color: #2E75B6; border-radius: 6px; font-size: 12px; border: none; }
+    .btn-book:hover { background-color: #1F4E79; }
+    .badge-pill { border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-available { background-color: #E8F8EF; color: #1A9E52; }
+</style>
+
+@code {
+    private string searchQuery = string.Empty;
+    private List<Specialty>? specialties;
+    private List<Doctor>? topDoctors;
+
+    protected override async Task OnInitializedAsync()
+    {
+        specialties = await DoctorService.GetSpecialtiesAsync();
+        var allDoctors = await DoctorService.GetDoctorsAsync();
+        topDoctors = allDoctors.OrderByDescending(d => d.Rating).ToList();
+    }
+
+    private void ExecuteSearch()
+    {
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            NavManager.NavigateTo($"/doctors?search={Uri.EscapeDataString(searchQuery)}");
+        }
+        else
+        {
+            NavManager.NavigateTo("/doctors");
+        }
+    }
+
+    private void FilterBySpecialty(string specialtyName)
+    {
+        NavManager.NavigateTo($"/doctors?specialty={Uri.EscapeDataString(specialtyName)}");
+    }
+
+    // UPDATED: Added complete multi-tier asynchronous session security validation checks
+    private async Task BookDoctor(int doctorId)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            // Valid Authentication: Send user securely to booking channel dashboard
+            NavManager.NavigateTo("/dashboard");
+        }
+        else
+        {
+            // Missing Session Token: Force user back to security registration ledger
+            NavManager.NavigateTo("/login");
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            ExecuteSearch();
+        }
+    }
+}
