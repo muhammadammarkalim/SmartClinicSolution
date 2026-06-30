@@ -1,0 +1,283 @@
+@page "/admin/dashboard"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavManager
+
+<PageTitle>Admin Dashboard - SmartClinic</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Administration</div>
+        </div>
+        <div class="sc-sidebar-user">
+            <div class="user-name">System Admin</div>
+            <div class="user-role">Administrator</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/admin/dashboard" class="sc-nav-link active"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Management</span>
+            <a href="/admin/doctors" class="sc-nav-link"><i class="bi bi-person-badge"></i> Doctors</a>
+            <a href="/admin/patients" class="sc-nav-link"><i class="bi bi-people"></i> Patients</a>
+            <a href="/admin/specialties" class="sc-nav-link"><i class="bi bi-tag"></i> Specialties</a>
+            <a href="/admin/revenue" class="sc-nav-link"><i class="bi bi-graph-up-arrow"></i> Revenue</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+        <div class="sc-topbar">
+            <div>
+                <h1 class="page-title">Clinic Overview</h1>
+                <p class="page-sub">@DateTime.Now.ToString("dddd, d MMMM yyyy")</p>
+            </div>
+            <a href="/admin/add-doctor" class="sc-btn sc-btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Doctor
+            </a>
+        </div>
+
+        <div class="sc-content">
+
+            <!-- Stats -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-xl-3">
+                    <div class="sc-stat">
+                        <div class="sc-stat-icon blue"><i class="bi bi-person-badge"></i></div>
+                        <div>
+                            <div class="sc-stat-value">@totalDoctors</div>
+                            <div class="sc-stat-label">Active Doctors</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3">
+                    <div class="sc-stat">
+                        <div class="sc-stat-icon green"><i class="bi bi-people"></i></div>
+                        <div>
+                            <div class="sc-stat-value">@totalPatients</div>
+                            <div class="sc-stat-label">Registered Patients</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3">
+                    <div class="sc-stat">
+                        <div class="sc-stat-icon amber"><i class="bi bi-calendar3"></i></div>
+                        <div>
+                            <div class="sc-stat-value">@totalAppointments</div>
+                            <div class="sc-stat-label">Total Appointments</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3">
+                    <div class="sc-stat" style="cursor:pointer;" @onclick="ToggleArchivedView">
+                        <div class="sc-stat-icon red"><i class="bi bi-archive"></i></div>
+                        <div>
+                            <div class="sc-stat-value">@deletedDoctorsCount</div>
+                            <div class="sc-stat-label">Archived Doctors</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <a href="/admin/doctors" class="sc-card d-flex align-items-center gap-3 p-4 text-decoration-none" style="transition:all 0.15s;" onmouseover="this.style.boxShadow='0 8px 20px rgba(0,0,0,0.10)'" onmouseout="this.style.boxShadow=''">
+                        <div class="sc-stat-icon blue" style="width:44px;height:44px;font-size:20px; flex-shrink:0;">
+                            <i class="bi bi-person-badge"></i>
+                        </div>
+                        <div>
+                            <div style="font-size:14px; font-weight:700; color:#111827;">Manage Doctors</div>
+                            <div style="font-size:12px; color:#6B7280;">View, edit, remove doctors</div>
+                        </div>
+                        <i class="bi bi-chevron-right ms-auto" style="color:#9CA3AF;"></i>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="/admin/patients" class="sc-card d-flex align-items-center gap-3 p-4 text-decoration-none" style="transition:all 0.15s;" onmouseover="this.style.boxShadow='0 8px 20px rgba(0,0,0,0.10)'" onmouseout="this.style.boxShadow=''">
+                        <div class="sc-stat-icon green" style="width:44px;height:44px;font-size:20px; flex-shrink:0;">
+                            <i class="bi bi-people"></i>
+                        </div>
+                        <div>
+                            <div style="font-size:14px; font-weight:700; color:#111827;">Manage Patients</div>
+                            <div style="font-size:12px; color:#6B7280;">View patient records</div>
+                        </div>
+                        <i class="bi bi-chevron-right ms-auto" style="color:#9CA3AF;"></i>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="/admin/specialties" class="sc-card d-flex align-items-center gap-3 p-4 text-decoration-none" style="transition:all 0.15s;" onmouseover="this.style.boxShadow='0 8px 20px rgba(0,0,0,0.10)'" onmouseout="this.style.boxShadow=''">
+                        <div class="sc-stat-icon amber" style="width:44px;height:44px;font-size:20px; flex-shrink:0;">
+                            <i class="bi bi-tag"></i>
+                        </div>
+                        <div>
+                            <div style="font-size:14px; font-weight:700; color:#111827;">Manage Specialties</div>
+                            <div style="font-size:12px; color:#6B7280;">Add or remove specialties</div>
+                        </div>
+                        <i class="bi bi-chevron-right ms-auto" style="color:#9CA3AF;"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Archived Doctors Panel -->
+            @if (showArchived)
+            {
+                <div class="sc-card mb-4">
+                    <div class="sc-card-header">
+                        <h2 class="sc-card-title"><i class="bi bi-archive me-2 text-danger"></i>Archived Doctors</h2>
+                        <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="ToggleArchivedView">
+                            <i class="bi bi-x-lg"></i> Close
+                        </button>
+                    </div>
+                    @if (!archivedDoctors.Any())
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-archive" style="font-size:36px; color:#D1D5DB;"></i>
+                            <p class="text-muted mt-3 mb-0" style="font-size:14px;">No archived doctors found.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="sc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Specialty</th>
+                                        <th>Qualification</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var doc in archivedDoctors)
+                                    {
+                                        <tr>
+                                            <td style="font-weight:600; font-size:13.5px;">@(doc.User?.Name ?? "Deactivated Account")</td>
+                                            <td style="font-size:13px;">@doc.Specialty</td>
+                                            <td style="font-size:13px;">@doc.Qualification</td>
+                                            <td><span class="sc-badge sc-badge-gray">Archived</span></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Recent Appointments -->
+            <div class="sc-card">
+                <div class="sc-card-header">
+                    <h2 class="sc-card-title"><i class="bi bi-calendar3 me-2 text-primary"></i>Recent Appointments</h2>
+                </div>
+                @if (recentAppointments == null)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" style="width:24px;height:24px;" role="status"></div>
+                    </div>
+                }
+                else if (!recentAppointments.Any())
+                {
+                    <div class="text-center py-5">
+                        <p class="text-muted mb-0">No appointments found.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="sc-table">
+                            <thead>
+                                <tr>
+                                    <th>Date &amp; Time</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th>Specialty</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var appt in recentAppointments)
+                                {
+                                    <tr>
+                                        <td style="font-size:13px;">@appt.AppointmentDateTime.ToString("d MMM yyyy, h:mm tt")</td>
+                                        <td style="font-size:13.5px; font-weight:600;">@appt.Patient?.Name</td>
+                                        <td style="font-size:13px;">Dr. @(appt.Doctor?.User?.Name ?? "—")</td>
+                                        <td style="font-size:13px;">@appt.Doctor?.Specialty</td>
+                                        <td>
+                                            <span class="sc-badge @GetStatusBadge(appt.Status)">@appt.Status</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private int totalDoctors;
+    private int totalPatients;
+    private int totalAppointments;
+    private int deletedDoctorsCount;
+    private bool showArchived = false;
+    private List<Doctor> archivedDoctors = new();
+    private List<Appointment>? recentAppointments;
+
+    protected override async Task OnInitializedAsync()
+    {
+        totalDoctors = await DbContext.Doctors.CountAsync(d => !d.IsDeleted);
+        totalPatients = await DbContext.Users.CountAsync(u => u.Role == "Patient");
+        totalAppointments = await DbContext.Appointments.CountAsync();
+        deletedDoctorsCount = await DbContext.Doctors.CountAsync(d => d.IsDeleted);
+
+        recentAppointments = await DbContext.Appointments
+            .Include(a => a.Patient)
+            .Include(a => a.Doctor).ThenInclude(d => d!.User)
+            .OrderByDescending(a => a.AppointmentDateTime)
+            .Take(10)
+            .ToListAsync();
+    }
+
+    private async Task ToggleArchivedView()
+    {
+        showArchived = !showArchived;
+        if (showArchived)
+        {
+            archivedDoctors = await DbContext.Doctors
+                .Include(d => d.User)
+                .Where(d => d.IsDeleted)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Completed" => "sc-badge-green",
+        "Cancelled" => "sc-badge-gray",
+        "Confirmed" => "sc-badge-blue",
+        "Booked" => "sc-badge-blue",
+        _ => "sc-badge-amber"
+    };
+}

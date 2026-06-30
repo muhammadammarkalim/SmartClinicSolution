@@ -1,0 +1,542 @@
+﻿@page "/book/{DoctorId:int}"
+@rendermode InteractiveServer
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Schedule Appointment - MediBook</PageTitle>
+
+<div class="container py-5" style="margin-top: 20px; margin-bottom: 60px;">
+    <div class="card border-0 shadow-sm mx-auto" style="max-width: 800px; border-radius: 16px;">
+        
+        <div class="card-header border-0 text-white p-4 d-flex justify-content-between align-items-center" style="background-color: #1F4E79; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+            <div>
+                <h4 class="fw-bold mb-0">📅 Book Your Appointment</h4>
+                <p class="mb-0 opacity-75 small">Secure your clinical verification session slot</p>
+            </div>
+            <span class="badge bg-white text-primary fw-bold px-3 py-2 fs-6" style="color: #1F4E79 !important;">
+                Step @currentStep of 5
+            </span>
+        </div>
+
+        <div class="card-body p-4">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2 small">Loading clinician schedule properties...</p>
+                </div>
+            }
+            else if (targetDoctor == null)
+            {
+                <div class="alert alert-danger text-center">
+                    <h5>⚠️ Error loading doctor profile. Please try again later.</h5>
+                    <a href="/doctors" class="btn btn-secondary mt-2">Back to Directory</a>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(alertMessage))
+                {
+                    <div class="alert @(alertMessage.Contains("✔️") ? "alert-success" : "alert-warning") border-0 shadow-sm rounded-3 mb-4" role="alert">
+                        <strong>System Notice:</strong> @alertMessage
+                    </div>
+                }
+
+                @if (currentStep == 1)
+                {
+                    <div class="step-content animate-fade-in">
+                        <h5 class="fw-bold text-dark mb-3">Step 1: Confirm Selected Practitioner</h5>
+                        <div class="p-3 bg-light rounded-3 d-flex align-items-center gap-3 border">
+                            <div class="fs-1">
+                                @if (!string.IsNullOrEmpty(targetDoctor?.Photo))
+                                {
+                                    <img src="@targetDoctor.Photo" alt="Doctor" style="width:48px;height:48px;object-fit:cover;border-radius:50%;" />
+                                }
+                                else if (!string.IsNullOrEmpty(targetDoctor?.User?.ProfileImage))
+                                {
+                                    <img src="@targetDoctor.User.ProfileImage" alt="Doctor" style="width:48px;height:48px;object-fit:cover;border-radius:50%;" />
+                                }
+                                else
+                                {
+                                    <span style="font-size:32px;">👨‍⚕️</span>
+                                }
+                            </div>
+                            <div>
+                                <h5 class="fw-bold text-dark mb-1">@(targetDoctor.User?.Name ?? "Specialist")</h5>
+                                <span class="badge bg-primary text-white mb-2">@targetDoctor.Specialty</span>
+                                <p class="text-muted mb-0 small"><strong>Qualifications:</strong> @targetDoctor.Qualification</p>
+                                <p class="text-muted mb-0 small"><strong>Consultation Fee:</strong> Rs. @targetDoctor.ConsultationFee.ToString("N0")</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (currentStep == 2)
+                {
+                    <div class="step-content animate-fade-in">
+                        <h5 class="fw-bold text-dark mb-3">Step 2: Choose Appointment Date</h5>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Select an available date within the next 30 days:</label>
+                            <input type="date" class="form-control form-control-lg" 
+                                   min="@DateTime.Today.ToString("yyyy-MM-dd")" 
+                                   max="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" 
+                                   @bind-value="selectedDate" 
+                                   @bind-value:event="onchange" />
+                        </div>
+                    </div>
+                }
+
+                @if (currentStep == 3)
+                {
+                    <div class="step-content animate-fade-in">
+                        <h5 class="fw-bold text-dark mb-2">Step 3: Choose Time Slot</h5>
+                        <p class="text-muted small mb-3">Selected Date: <strong>@selectedDate.ToString("MMMM dd, yyyy")</strong></p>
+                        
+                        @if (isDayOff)
+                        {
+                            <div class="sc-alert sc-alert-warning">
+                                <i class="bi bi-calendar-x me-2"></i>
+                                This doctor does not work on <strong>@selectedDate.ToString("dddd")</strong>. Please select a working day.
+                            </div>
+                        }
+                        else if (!availableSlots.Any())
+                        {
+                            <div class="p-4 text-center bg-light rounded-3 border">
+                                <i class="bi bi-clock-history" style="font-size:28px; color:#9CA3AF;"></i>
+                                <p class="text-muted mb-0 mt-2 small fw-semibold">All slots are fully booked for this date. Please choose another day.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row row-cols-3 row-cols-sm-4 g-2">
+                                @foreach (var slot in availableSlots)
+                                {
+                                    <div class="col">
+                                        <button type="button" 
+                                                class="btn w-100 py-2 text-center slot-btn @(selectedTimeSlot == slot ? "slot-selected" : "slot-unselected")"
+                                                @onclick="() => SelectTimeSlot(slot)">
+                                            @slot
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (currentStep == 4)
+                {
+                    <div class="step-content animate-fade-in">
+                        <h5 class="fw-bold text-dark mb-3">Step 4: Appointment Notes & Severity</h5>
+                        
+                        <div class="mb-4">
+                            <label class="form-label small fw-semibold text-secondary d-block">Urgency Level</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="urgencyRadio" id="urgRoutine" value="Routine" checked="@(selectedUrgency == "Routine")" @onchange='() => selectedUrgency = "Routine"' />
+                                    <label class="form-check-label small" for="urgRoutine">🟢 Routine</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="urgencyRadio" id="urgModerate" value="Moderate" checked="@(selectedUrgency == "Moderate")" @onchange='() => selectedUrgency = "Moderate"' />
+                                    <label class="form-check-label small" for="urgModerate">🟡 Moderate</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="urgencyRadio" id="urgUrgent" value="Urgent" checked="@(selectedUrgency == "Urgent")" @onchange='() => selectedUrgency = "Urgent"' />
+                                    <label class="form-check-label small" for="urgUrgent">🔴 Urgent</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Patient Notes (Optional)</label>
+                            <textarea class="form-control" rows="3" placeholder="Any additional information for the doctor..." @bind="patientNotes"></textarea>
+                        </div>
+                    </div>
+                }
+
+                @if (currentStep == 5)
+                {
+                    <div class="step-content animate-fade-in">
+                        <h5 class="fw-bold text-dark mb-3">Step 5: Verify Booking Summary</h5>
+                        <div class="p-3 border rounded-3 bg-light">
+                            <table class="table table-borderless table-sm mb-0 small">
+                                <tr>
+                                    <td class="text-secondary fw-semibold" style="width: 140px;">Doctor:</td>
+                                    <td class="text-dark fw-bold">@(targetDoctor.User?.Name)</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary fw-semibold">Specialty:</td>
+                                    <td>@targetDoctor.Specialty</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary fw-semibold">Date:</td>
+                                    <td class="text-dark fw-bold">@selectedDate.ToString("MMMM dd, yyyy")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary fw-semibold">Time Slot:</td>
+                                    <td class="text-primary fw-bold">@selectedTimeSlot</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary fw-semibold">Urgency:</td>
+                                    <td><span class="badge bg-secondary">@selectedUrgency</span></td>
+                                </tr>
+                                @if (!string.IsNullOrEmpty(patientNotes))
+                                {
+                                    <tr>
+                                        <td class="text-secondary fw-semibold">Your Notes:</td>
+                                        <td class="text-muted italic">"@patientNotes"</td>
+                                    </tr>
+                                }
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                    <button type="button" class="btn btn-secondary px-4 py-2" 
+                            disabled="@(isSubmitting)" 
+                            @onclick="MoveToPreviousStep">
+                        ← Back
+                    </button>
+
+                    @if (currentStep < 5)
+                    {
+                        <button type="button" class="btn text-white px-4 py-2" 
+                                style="background-color: #2E75B6;" 
+                                @onclick="MoveToNextStep">
+                            Next →
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-success px-5 py-2 fw-bold" 
+                                disabled="@isSubmitting" 
+                                @onclick="ConfirmFinalBooking">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span>Booking...</span>
+                            }
+                            else
+                            {
+                                <span>Confirm Booking ✔️</span>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    body { background-color: #F5F8FF !important; }
+    .slot-btn { font-size: 13px; font-weight: 500; border-radius: 8px; border: 1px solid #E5E7EB; transition: all 0.15s ease; }
+    .slot-unselected { background-color: #FFFFFF; color: #4B5563; }
+    .slot-unselected:hover { background-color: #F3F4F6; border-color: #9CA3AF; }
+    .slot-selected { background-color: #2E75B6 !important; color: #FFFFFF !important; border-color: #2E75B6 !important; font-weight: 600; box-shadow: 0 4px 10px rgba(46,117,182,0.2); }
+    .animate-fade-in { animation: fadeIn 0.25s ease-in-out; }
+    
+    /* FIXED: Doubled the symbol to escape the Blazor razor compiler compiler constraint */
+    @@keyframes fadeIn { 
+        from { opacity: 0; transform: translateY(4px); } 
+        to { opacity: 1; transform: translateY(0); } 
+    }
+</style>
+
+@code {
+    [Parameter] public int DoctorId { get; set; }
+
+    private int currentStep = 1;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string alertMessage = string.Empty;
+
+    private Doctor? targetDoctor;
+    private string currentPatientId = string.Empty;
+    private bool isDayOff = false;
+
+    // Multi-Step Form State Form Storage Bound Parameters
+    private DateTime selectedDate = DateTime.Today.AddDays(1);
+    private List<string> availableSlots = new();
+    private string selectedTimeSlot = string.Empty;
+    private string selectedUrgency = "Routine";
+    private string patientNotes = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        alertMessage = string.Empty;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                NavManager.NavigateTo("/login");
+                return;
+            }
+
+            currentPatientId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            targetDoctor = await DbContext.Doctors
+                .Include(d => d.User)
+                .FirstOrDefaultAsync(d => d.DoctorID == DoctorId);
+
+            if (targetDoctor == null)
+            {
+                isLoading = false;
+                return;
+            }
+
+            await GenerateAvailableTimeSlots();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initiating step flow layout: {ex.Message}");
+        }
+
+        isLoading = false;
+    }
+
+    private async Task GenerateAvailableTimeSlots()
+    {
+        selectedTimeSlot = string.Empty;
+        availableSlots.Clear();
+
+        // Standard 9:00 AM - 5:00 PM clinical shift block windows
+        var baseSlots = new List<string> { 
+            "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+            "12:00 PM", "12:30 PM", "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
+            "04:00 PM", "04:30 PM" 
+        };
+
+        try
+        {
+            // If doctor not loaded, try to load
+            if (targetDoctor == null)
+            {
+                targetDoctor = await DbContext.Doctors.Include(d => d.User).FirstOrDefaultAsync(d => d.DoctorID == DoctorId);
+                if (targetDoctor == null) return;
+            }
+
+            // Check working days
+            isDayOff = false;
+            if (!string.IsNullOrEmpty(targetDoctor.WorkingDays))
+            {
+                var dayFull = selectedDate.DayOfWeek.ToString(); // e.g., Monday
+                var dayAbbrev = dayFull.Substring(0, 3); // Mon
+                var raw = targetDoctor.WorkingDays;
+                var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToList();
+
+                bool dayAllowed = parts.Any(p => string.Equals(p, dayFull, StringComparison.OrdinalIgnoreCase)
+                                                 || string.Equals(p, dayAbbrev, StringComparison.OrdinalIgnoreCase));
+
+                // Support range like "Monday - Saturday"
+                if (!dayAllowed && raw.Contains('-'))
+                {
+                    var range = raw.Split('-', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+                    if (range.Count == 2)
+                    {
+                        try
+                        {
+                            var startIndex = Enum.Parse<DayOfWeek>(range[0], true);
+                            var endIndex = Enum.Parse<DayOfWeek>(range[1], true);
+                            var selIndex = selectedDate.DayOfWeek;
+                            // Normalize range across week boundary
+                            int s = (int)startIndex, e = (int)endIndex, v = (int)selIndex;
+                            if (s <= e) dayAllowed = v >= s && v <= e;
+                            else dayAllowed = v >= s || v <= e;
+                        }
+                        catch { /* ignore parse errors and keep dayAllowed false */ }
+                    }
+                }
+
+                if (!dayAllowed)
+                {
+                    isDayOff = true;
+                    return;
+                }
+            }
+
+            // Check admin-set unavailability range
+            if (targetDoctor.UnavailableFrom.HasValue && targetDoctor.UnavailableTo.HasValue)
+            {
+                var from = targetDoctor.UnavailableFrom.Value.Date;
+                var to = targetDoctor.UnavailableTo.Value.Date;
+                if (selectedDate.Date >= from && selectedDate.Date <= to)
+                {
+                    isDayOff = true; // reuse flag to show a friendly message
+                    return;
+                }
+            }
+
+            // Determine shift range
+            TimeSpan shiftStartTs;
+            TimeSpan shiftEndTs;
+            bool parsedStart = TimeSpan.TryParse(targetDoctor.ShiftStart, out shiftStartTs);
+            bool parsedEnd = TimeSpan.TryParse(targetDoctor.ShiftEnd, out shiftEndTs);
+            if (!parsedStart || !parsedEnd)
+            {
+                // try parsing as DateTime
+                if (DateTime.TryParse(targetDoctor.ShiftStart, out var sdt)) shiftStartTs = sdt.TimeOfDay;
+                if (DateTime.TryParse(targetDoctor.ShiftEnd, out var edt)) shiftEndTs = edt.TimeOfDay;
+            }
+
+            var slotDuration = targetDoctor.SlotDurationMinutes > 0 ? targetDoctor.SlotDurationMinutes : 30;
+
+            // Build available slots based on shift range and slot duration
+            var slots = new List<string>();
+            var cursor = DateTime.Today.Add(shiftStartTs);
+            var endTime = DateTime.Today.Add(shiftEndTs);
+            while (cursor.AddMinutes(slotDuration) <= endTime)
+            {
+                slots.Add(cursor.ToString("hh:mm tt"));
+                cursor = cursor.AddMinutes(slotDuration);
+            }
+
+            // Query all existing bookings for this specific doctor on the chosen date
+            var bookedTimes = await DbContext.Appointments
+                .Where(a => a.DoctorID == DoctorId && a.AppointmentDateTime.Date == selectedDate.Date && a.Status != "Cancelled")
+                .Select(a => a.AppointmentDateTime.ToString("hh:mm tt"))
+                .ToListAsync();
+
+            // Exclude already-reserved intervals
+            foreach (var slot in slots)
+            {
+                if (!bookedTimes.Contains(slot)) availableSlots.Add(slot);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing timeline ranges: {ex.Message}");
+        }
+    }
+
+    private void SelectTimeSlot(string slot)
+    {
+        selectedTimeSlot = slot;
+        alertMessage = string.Empty;
+    }
+
+    private async Task MoveToNextStep()
+    {
+        alertMessage = string.Empty;
+
+        if (currentStep == 2)
+        {
+            if (selectedDate.Date < DateTime.Today)
+            {
+                alertMessage = "⚠️ Invalid Date: Cannot book sessions in past intervals.";
+                return;
+            }
+            await GenerateAvailableTimeSlots();
+        }
+
+        if (currentStep == 3 && isDayOff)
+        {
+            alertMessage = "This doctor does not work on the selected day. Please go back and choose a different date.";
+            return;
+        }
+
+        if (currentStep == 3 && string.IsNullOrEmpty(selectedTimeSlot))
+        {
+            alertMessage = "Please select an available time slot before continuing.";
+            return;
+        }
+
+        currentStep++;
+    }
+
+    private void MoveToPreviousStep()
+    {
+        alertMessage = string.Empty;
+        if (currentStep <= 1)
+        {
+            // If user is at the first step, navigate back to the doctor's profile or listing
+            if (targetDoctor != null)
+            {
+                NavManager.NavigateTo($"/doctors/{targetDoctor.DoctorID}");
+                return;
+            }
+            NavManager.NavigateTo("/doctors");
+            return;
+        }
+
+        currentStep--;
+    }
+
+    private async Task ConfirmFinalBooking()
+    {
+        isSubmitting = true;
+        alertMessage = string.Empty;
+
+        try
+        {
+            // Parse targeted string to absolute logical timestamp components safely
+            DateTime finalizedDateTime = DateTime.Parse($"{selectedDate.ToString("yyyy-MM-dd")} {selectedTimeSlot}");
+
+            // ── VALIDATION GUARD 1: REJECT DUPLICATE BOOKING WITH SAME DOCTOR ON SAME DAY ──
+            bool existsSameDoctorToday = await DbContext.Appointments
+                .AnyAsync(a => a.PatientID == currentPatientId 
+                            && a.DoctorID == DoctorId 
+                            && a.AppointmentDateTime.Date == selectedDate.Date 
+                            && a.Status != "Cancelled");
+
+            if (existsSameDoctorToday)
+            {
+                alertMessage = "⚠️ Double-Booking Blocked: You already have an active appointment scheduled with this specific doctor today.";
+                isSubmitting = false;
+                return;
+            }
+
+            // ── VALIDATION GUARD 2: REJECT OVERLAPPING BOOKING AT THE SAME TIME WITH OTHER DOCTORS ──
+            bool existsTimeOverlapWithOtherDoctor = await DbContext.Appointments
+                .AnyAsync(a => a.PatientID == currentPatientId 
+                            && a.AppointmentDateTime == finalizedDateTime 
+                            && a.Status != "Cancelled");
+
+            if (existsTimeOverlapWithOtherDoctor)
+            {
+                alertMessage = "⚠️ Time Slot Conflict: You have an overlapping appointment scheduled with another clinical specialist at this exact same time slot.";
+                isSubmitting = false;
+                return;
+            }
+
+            // Construct new row matching domain variables perfectly
+            var userAppointment = new Appointment
+            {
+                PatientID = currentPatientId,
+                DoctorID = DoctorId,
+                AppointmentDateTime = finalizedDateTime,
+                Status = "Booked",
+                Urgency = selectedUrgency,
+                PatientNotes = patientNotes
+            };
+
+            DbContext.Appointments.Add(userAppointment);
+            await DbContext.SaveChangesAsync();
+
+            alertMessage = "✔️ Success! Appointment registered securely. Redirecting to your panel folder...";
+            StateHasChanged();
+
+            await Task.Delay(2000);
+            NavManager.NavigateTo("/appointments"); // Redirects to patient appointments history list
+        }
+        catch (Exception ex)
+        {
+            alertMessage = $"⚠️ Pipeline Transaction Fault: Could not commit allocation. Details: {ex.Message}";
+        }
+
+        isSubmitting = false;
+    }
+}

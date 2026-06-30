@@ -1,0 +1,408 @@
+/* ============================================================
+   SmartClinic Professional Design System
+   ============================================================ */
+
+:root {
+  --clinic-primary: #1D4ED8;
+  --clinic-primary-dark: #1e3a5f;
+  --clinic-primary-light: #EFF6FF;
+  --clinic-accent: #0EA5E9;
+  --clinic-success: #10B981;
+  --clinic-warning: #F59E0B;
+  --clinic-danger: #EF4444;
+  --clinic-text: #111827;
+  --clinic-text-muted: #6B7280;
+  --clinic-border: #E5E7EB;
+  --clinic-bg: #F3F4F6;
+  --clinic-white: #FFFFFF;
+  --clinic-sidebar: #1e3a5f;
+  --sidebar-width: 260px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.10);
+}
+
+/* ---- Base ---- */
+body { font-family: 'Inter', 'Segoe UI', sans-serif; color: var(--clinic-text); background: var(--clinic-bg); }
+
+/* ---- Sidebar ---- */
+.sc-sidebar {
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  background: var(--clinic-sidebar);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.sc-sidebar-brand {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+.sc-sidebar-brand .brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.sc-sidebar-brand .brand-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.50);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.sc-sidebar-user {
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+.sc-sidebar-user .user-name { font-size: 13px; font-weight: 600; color: #fff; }
+.sc-sidebar-user .user-role { font-size: 11px; color: rgba(255,255,255,0.45); }
+.sc-nav { padding: 12px 0; flex: 1; }
+.sc-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.70);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+}
+.sc-nav-link i { width: 18px; font-size: 15px; }
+.sc-nav-link:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.sc-nav-link.active { color: #fff; background: rgba(255,255,255,0.12); border-left-color: var(--clinic-accent); }
+.sc-nav-divider { border-color: rgba(255,255,255,0.10); margin: 6px 0; }
+.sc-nav-section {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+  padding: 10px 20px 4px;
+}
+.sc-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255,160,160,0.80);
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sc-logout-btn:hover { color: #FCA5A5; background: rgba(239,68,68,0.10); }
+
+/* ---- Main content ---- */
+.sc-main { flex: 1; overflow-x: hidden; min-height: 100vh; }
+.sc-topbar {
+  background: var(--clinic-white);
+  border-bottom: 1px solid var(--clinic-border);
+  padding: 16px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sc-topbar .page-title { font-size: 20px; font-weight: 700; color: var(--clinic-text); margin: 0; }
+.sc-topbar .page-sub { font-size: 13px; color: var(--clinic-text-muted); margin: 0; }
+.sc-content { padding: 24px 28px; }
+
+/* ---- Stat Cards ---- */
+.sc-stat {
+  background: var(--clinic-white);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  border: 1px solid var(--clinic-border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: box-shadow 0.2s;
+}
+.sc-stat:hover { box-shadow: var(--shadow-md); }
+.sc-stat-icon {
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.sc-stat-icon.blue { background: #EFF6FF; color: var(--clinic-primary); }
+.sc-stat-icon.green { background: #ECFDF5; color: var(--clinic-success); }
+.sc-stat-icon.amber { background: #FFFBEB; color: var(--clinic-warning); }
+.sc-stat-icon.red { background: #FEF2F2; color: var(--clinic-danger); }
+.sc-stat-value { font-size: 26px; font-weight: 700; color: var(--clinic-text); line-height: 1; }
+.sc-stat-label { font-size: 12px; color: var(--clinic-text-muted); margin-top: 3px; }
+
+/* ---- Cards ---- */
+.sc-card {
+  background: var(--clinic-white);
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.sc-card-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--clinic-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sc-card-title { font-size: 15px; font-weight: 700; color: var(--clinic-text); margin: 0; }
+.sc-card-body { padding: 22px; }
+
+/* ---- Section headers ---- */
+.sc-section-title {
+  font-size: 15px; font-weight: 700; color: var(--clinic-text);
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sc-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px; height: 16px;
+  background: var(--clinic-primary);
+  border-radius: 2px;
+}
+
+/* ---- Buttons ---- */
+.sc-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px;
+  font-size: 13.5px; font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: none; cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+.sc-btn-primary { background: var(--clinic-primary); color: #fff; }
+.sc-btn-primary:hover { background: var(--clinic-primary-dark); color: #fff; }
+.sc-btn-outline { background: transparent; color: var(--clinic-primary); border: 1.5px solid var(--clinic-primary); }
+.sc-btn-outline:hover { background: var(--clinic-primary-light); }
+.sc-btn-success { background: var(--clinic-success); color: #fff; }
+.sc-btn-success:hover { background: #059669; }
+.sc-btn-danger { background: var(--clinic-danger); color: #fff; }
+.sc-btn-danger:hover { background: #DC2626; }
+.sc-btn-sm { padding: 6px 13px; font-size: 12.5px; }
+.sc-btn-lg { padding: 12px 24px; font-size: 15px; }
+
+/* ---- Badges ---- */
+.sc-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  font-size: 11.5px; font-weight: 600;
+  border-radius: 20px;
+}
+.sc-badge-blue { background: #EFF6FF; color: var(--clinic-primary); }
+.sc-badge-green { background: #ECFDF5; color: #059669; }
+.sc-badge-amber { background: #FFFBEB; color: #B45309; }
+.sc-badge-red { background: #FEF2F2; color: #B91C1C; }
+.sc-badge-gray { background: #F3F4F6; color: #6B7280; }
+
+/* ---- Table ---- */
+.sc-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.sc-table th {
+  font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--clinic-text-muted);
+  padding: 12px 16px;
+  background: #F9FAFB;
+  border-bottom: 1px solid var(--clinic-border);
+  white-space: nowrap;
+}
+.sc-table td {
+  padding: 14px 16px;
+  font-size: 13.5px;
+  color: var(--clinic-text);
+  border-bottom: 1px solid var(--clinic-border);
+  vertical-align: middle;
+}
+.sc-table tr:last-child td { border-bottom: none; }
+.sc-table tbody tr:hover { background: #F9FAFB; }
+
+/* ---- Forms ---- */
+.sc-form-label {
+  font-size: 12.5px; font-weight: 600;
+  color: var(--clinic-text-muted);
+  text-transform: uppercase; letter-spacing: 0.4px;
+  margin-bottom: 6px;
+  display: block;
+}
+.sc-form-control {
+  width: 100%;
+  padding: 10px 13px;
+  font-size: 14px;
+  border: 1.5px solid var(--clinic-border);
+  border-radius: var(--radius-sm);
+  background: var(--clinic-white);
+  color: var(--clinic-text);
+  transition: border-color 0.15s;
+  outline: none;
+}
+.sc-form-control:focus { border-color: var(--clinic-primary); box-shadow: 0 0 0 3px rgba(29,78,216,0.10); }
+.sc-form-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 18px; padding-right: 36px; }
+.sc-form-group { margin-bottom: 18px; }
+.sc-form-section {
+  font-size: 13px; font-weight: 700;
+  color: var(--clinic-primary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--clinic-border);
+  margin-bottom: 16px;
+}
+
+/* ---- Appointment Row ---- */
+.sc-appt-row {
+  background: var(--clinic-white);
+  border: 1px solid var(--clinic-border);
+  border-left: 4px solid var(--clinic-primary);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: box-shadow 0.15s;
+}
+.sc-appt-row:hover { box-shadow: var(--shadow-md); }
+.sc-appt-row.status-completed { border-left-color: var(--clinic-success); }
+.sc-appt-row.status-cancelled { border-left-color: #9CA3AF; opacity: 0.75; }
+.sc-appt-row.status-booked { border-left-color: var(--clinic-accent); }
+
+/* ---- Avatar ---- */
+.sc-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #EFF6FF;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 700;
+  color: var(--clinic-primary);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.sc-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.sc-avatar-lg { width: 80px; height: 80px; font-size: 26px; }
+.sc-avatar-xl { width: 110px; height: 110px; font-size: 38px; }
+
+/* ---- Alert ---- */
+.sc-alert {
+  padding: 13px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  border: 1px solid;
+  margin-bottom: 16px;
+}
+.sc-alert-success { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
+.sc-alert-danger { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
+.sc-alert-warning { background: #FFFBEB; border-color: #FCD34D; color: #92400E; }
+.sc-alert-info { background: #EFF6FF; border-color: #BFDBFE; color: #1E40AF; }
+
+/* ---- Profile ---- */
+.sc-profile-card {
+  background: var(--clinic-white);
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.sc-profile-header {
+  background: linear-gradient(135deg, var(--clinic-primary-dark) 0%, var(--clinic-primary) 100%);
+  padding: 32px 28px 24px;
+  display: flex; align-items: flex-end; gap: 20px;
+  position: relative;
+}
+.sc-profile-body { padding: 24px 28px; }
+.sc-profile-field { margin-bottom: 20px; }
+.sc-profile-field-label { font-size: 11.5px; font-weight: 700; color: var(--clinic-text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.sc-profile-field-value { font-size: 14.5px; color: var(--clinic-text); font-weight: 500; }
+
+/* ---- Doctor card ---- */
+.sc-doctor-card {
+  background: var(--clinic-white);
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.sc-doctor-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.sc-doctor-card-header { background: var(--clinic-primary-light); padding: 22px; display: flex; gap: 16px; align-items: center; }
+.sc-doctor-card-body { padding: 18px 22px; }
+.sc-doctor-name { font-size: 16px; font-weight: 700; }
+.sc-doctor-specialty { font-size: 12px; color: var(--clinic-primary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ---- Rating stars ---- */
+.sc-stars { display: flex; gap: 2px; }
+.sc-stars i { font-size: 13px; color: #D1D5DB; }
+.sc-stars i.filled { color: #F59E0B; }
+
+/* ---- Time slot grid ---- */
+.sc-timeslot {
+  padding: 9px 12px;
+  border: 1.5px solid var(--clinic-border);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px; font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--clinic-text);
+  background: var(--clinic-white);
+}
+.sc-timeslot:hover { border-color: var(--clinic-primary); color: var(--clinic-primary); background: var(--clinic-primary-light); }
+.sc-timeslot.selected { background: var(--clinic-primary); color: #fff; border-color: var(--clinic-primary); }
+.sc-timeslot.unavailable { background: #F9FAFB; color: #9CA3AF; cursor: not-allowed; text-decoration: line-through; }
+
+/* ---- Review card ---- */
+.sc-review {
+  padding: 16px;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--radius-md);
+  background: var(--clinic-white);
+  margin-bottom: 12px;
+}
+
+/* ---- Step wizard ---- */
+.sc-steps { display: flex; align-items: center; margin-bottom: 28px; }
+.sc-step { display: flex; align-items: center; flex: 1; }
+.sc-step-circle {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: #E5E7EB;
+  color: #9CA3AF;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  flex-shrink: 0;
+}
+.sc-step-circle.active { background: var(--clinic-primary); color: #fff; }
+.sc-step-circle.done { background: var(--clinic-success); color: #fff; }
+.sc-step-label { font-size: 12px; color: #9CA3AF; margin-left: 8px; font-weight: 500; }
+.sc-step-label.active { color: var(--clinic-primary); font-weight: 700; }
+.sc-step-connector { flex: 1; height: 2px; background: #E5E7EB; margin: 0 8px; }
+.sc-step-connector.done { background: var(--clinic-success); }
+
+/* ---- Prescription print ---- */
+@media print {
+  .no-print { display: none !important; }
+  .sc-sidebar { display: none !important; }
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+
+/* ---- Responsive ---- */
+@media (max-width: 991px) {
+  .sc-sidebar { display: none; }
+  .sc-content { padding: 16px; }
+}

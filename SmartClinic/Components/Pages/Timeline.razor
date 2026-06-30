@@ -1,0 +1,160 @@
+﻿@page "/timeline"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Patient")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+
+<PageTitle>Health Timeline - SmartClinic</PageTitle>
+
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">📋 Health Timeline</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">Your comprehensive past diagnoses, visits, and recovery records</p>
+    </div>
+</div>
+
+<div class="sc-content">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 small">Mapping clinical history timeline...</p>
+        </div>
+    }
+    else if (!completedAppointments.Any())
+    {
+        <div class="bg-white text-center py-5 rounded-3 shadow-sm border px-4" style="border-radius: 16px;">
+            <span class="fs-1 d-block mb-2">🌿</span>
+            <h5 class="fw-bold text-dark mb-1">No Past Visits Discovered</h5>
+            <p class="text-muted small mb-0">Your completed check-up records and medical timeline items will render here once issued by a doctor.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-5">
+            <div class="col-sm-4">
+                <div class="p-3 bg-white rounded-3 shadow-sm border-0 border-start border-primary border-4">
+                    <span class="text-muted text-xs d-block text-uppercase fw-semibold" style="font-size: 11px;">Total Consultations</span>
+                    <h4 class="fw-bold text-dark mb-0">@completedAppointments.Count Visits</h4>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="p-3 bg-white rounded-3 shadow-sm border-0 border-start border-success border-4">
+                    <span class="text-muted text-xs d-block text-uppercase fw-semibold" style="font-size: 11px;">Prescribed Treatments</span>
+                    <h4 class="fw-bold text-dark mb-0">@completedAppointments.Count(a => a.Prescription != null) Records</h4>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="p-3 bg-white rounded-3 shadow-sm border-0 border-start border-info border-4">
+                    <span class="text-muted text-xs d-block text-uppercase fw-semibold" style="font-size: 11px;">Last Assessment</span>
+                    <h4 class="fw-bold text-dark mb-0">@completedAppointments.First().AppointmentDateTime.ToString("dd MMM yyyy")</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="position-relative ps-4 timeline-wrapper">
+            <div class="position-absolute timeline-vertical-line bg-secondary opacity-25" style="width: 3px; top: 0; bottom: 0; left: 7px;"></div>
+
+            @foreach (var appt in completedAppointments)
+            {
+                <div class="position-relative mb-4 animate-fade-in">
+                    <div class="position-absolute rounded-circle timeline-node-dot" 
+                         style="width: 17px; height: 17px; left: -32px; top: 22px; background-color: var(--clinic-primary); border: 3px solid #FFFFFF; box-shadow: 0 0 0 3px rgba(46,117,182,0.25);"></div>
+
+                    <div class="card border-0 shadow-sm p-4 bg-white" style="border-radius: 14px;">
+                        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 mb-3 border-bottom pb-2">
+                            <div>
+                                <span class="text-muted small fw-semibold d-block mb-1">📅 @appt.AppointmentDateTime.ToString("MMMM dd, yyyy — hh:mm tt")</span>
+                                <h5 class="fw-bold text-dark mb-0">👨‍⚕️ @(appt.Doctor?.User?.Name ?? "Medical Consultant")</h5>
+                                <span class="badge bg-light text-secondary border mt-1" style="font-size: 11px;">@appt.Doctor?.Specialty</span>
+                            </div>
+                            <span class="badge bg-success text-white px-3 py-2 fw-semibold" style="font-size: 12px; border-radius: 6px;">
+                                Completed Check-up
+                            </span>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <span class="small text-muted d-block text-uppercase fw-bold" style="font-size: 11px;">📋 Clinical Diagnosis</span>
+                                <p class="text-dark fw-bold mt-1" style="font-size: 14px;">
+                                    @(appt.Prescription?.Diagnosis ?? "No formal diagnosis noted.")
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <span class="small text-muted d-block text-uppercase fw-bold" style="font-size: 11px;">💊 Issued Medications</span>
+                                <p class="text-muted mt-1 small" style="font-size: 13px;">
+                                    @if (appt.Prescription?.Medicines != null && appt.Prescription.Medicines.Any())
+                                    {
+                                        <span>@string.Join(", ", appt.Prescription.Medicines.Select(m => m.MedicineName))</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted italic">No medicine entries compiled for this check-up.</span>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+
+                        @if (appt.Prescription != null)
+                        {
+                            <div class="mt-3 pt-2 text-start">
+                                <a href="/prescriptions" class="btn btn-sm text-white fw-semibold px-3" style="background-color: var(--clinic-primary); border-radius: 6px; font-size: 12px; text-decoration: none;">
+                                    🔎 View Prescription Sheet
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    body { background-color: #F5F8FF !important; }
+    .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private string statusMessage = string.Empty;
+    private List<Appointment> completedAppointments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            string patientUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            if (!string.IsNullOrEmpty(patientUserId))
+            {
+                // Pull past diagnostic histories filtering for the Completed criteria status row
+                completedAppointments = await DbContext.Appointments
+                    .Include(a => a.Doctor)
+                    .ThenInclude(d => d!.User)
+                    .Include(a => a.Prescription)
+                    .ThenInclude(p => p!.Medicines)
+                    .Where(a => a.PatientID == patientUserId && a.Status == "Completed")
+                    .OrderByDescending(a => a.AppointmentDateTime)
+                    .ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"⚠️ Timeline Sync Break: {ex.Message}";
+        }
+
+        isLoading = false;
+    }
+}

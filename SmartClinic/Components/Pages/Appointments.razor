@@ -1,0 +1,402 @@
+@page "/appointments"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Patient")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization @* CRITICAL FIX: Added to resolve CS0246 [Authorize] error *@
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+
+<PageTitle>My Appointments - SmartClinic</PageTitle>
+
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">📅 My Appointments</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">Track, manage, or cancel your clinic consultation sessions</p>
+    </div>
+</div>
+
+<div class="sc-content">
+    
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusMessage.Contains("") ? "alert-success" : "alert-warning") alert-dismissible fade show border-0 shadow-sm p-3 mb-4 rounded-3" role="alert">
+            <span>@statusMessage</span>
+            <button type="button" class="btn-close shadow-none" @onclick='() => statusMessage = string.Empty'></button>
+        </div>
+    }
+
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-4 gap-3">
+        <div class="btn-group shadow-sm bg-white p-1 rounded-3" role="group" style="border: 1px solid #E5E7EB;">
+            <button type="button" class="btn filter-tab px-4 py-2 @(activeFilter == "All" ? "active" : "")" @onclick='() => ApplyStatusFilter("All")'>All</button>
+            <button type="button" class="btn filter-tab px-4 py-2 @(activeFilter == "Upcoming" ? "active" : "")" @onclick='() => ApplyStatusFilter("Upcoming")'>Upcoming</button>
+            <button type="button" class="btn filter-tab px-4 py-2 @(activeFilter == "Completed" ? "active" : "")" @onclick='() => ApplyStatusFilter("Completed")'>Past Visits</button>
+        </div>
+        
+        <a href="/doctors" class="btn text-white fw-semibold px-4 py-2 d-inline-flex align-items-center gap-2" style="background-color: #2E75B6; border-radius: 8px; font-size: 14px; text-decoration: none;">
+            <i class="bi bi-plus-lg me-1"></i> Schedule New Session
+        </a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 small">Loading your patient booking records...</p>
+        </div>
+    }
+    else if (!filteredAppointments.Any())
+    {
+        <div class="bg-white text-center py-5 rounded-3 shadow-sm border px-4" style="border-radius: 16px;">
+            <span class="fs-1 d-block mb-2"></span>
+            <h5 class="fw-bold text-dark mb-1">No Appointments Discovered</h5>
+            <p class="text-muted small mb-0">You don't have any consultation entries listed under the "@activeFilter" category filter profile.</p>
+        </div>
+    }
+    else
+    {
+        <div class="bg-white shadow-sm border-0 p-4" style="border-radius: 16px;">
+            <div class="table-responsive">
+                <table class="table align-middle custom-table mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Doctor Name</th>
+                            <th>Department</th>
+                            <th>Date & Time</th>
+                            <th>Urgency Severity</th>
+                            <th>Current Status</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var appt in filteredAppointments)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="sc-avatar" style="width:36px;height:36px;font-size:13px; flex-shrink:0;">
+                                            @if (!string.IsNullOrEmpty(appt.Doctor?.Photo))
+                                            {
+                                                <img src="@appt.Doctor.Photo" alt="Doctor" />
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-person-fill" style="font-size:15px;"></i>
+                                            }
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-semibold text-dark mb-0" style="font-size: 14px;">@(appt.Doctor?.User?.Name ?? "Clinician Specialist")</h6>
+                                            <span class="text-muted text-xs d-block" style="font-size: 11px;">ID: #SLOT-0@appt.AppointmentID</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border fw-medium px-2 py-1" style="font-size: 12px;">@appt.Doctor?.Specialty</span>
+                                </td>
+                                <td class="fw-semibold text-dark" style="font-size: 13.5px;">
+                                    @appt.AppointmentDateTime.ToString("dd MMM yyyy") <span class="text-muted fw-normal d-block" style="font-size: 11px;">@appt.AppointmentDateTime.ToString("hh:mm tt")</span>
+                                </td>
+                                <td>
+                                    <span class="badge px-3 py-1 state-urgency-badge @appt.Urgency.ToLower()">
+                                        @appt.Urgency
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-dot-indicator @appt.Status.ToLower().Replace(" ", "-")"></span>
+                                    <span class="fw-medium small text-dark">@appt.Status</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex justify-content-end gap-2">
+                                    @if (appt.Status == "Booked" || appt.Status == "Confirmed")
+                                    {
+                                        <button type="button" class="sc-btn sc-btn-danger sc-btn-sm" @onclick="() => InitiateCancellationRequest(appt.AppointmentID)">
+                                            <i class="bi bi-x-circle"></i> Cancel
+                                        </button>
+                                    }
+                                    @if (appt.Status == "Completed")
+                                    {
+                                        @if (!reviewedDoctorIds.Contains(appt.DoctorID))
+                                        {
+                                            <button type="button" class="sc-btn sc-btn-outline sc-btn-sm" @onclick="() => OpenReview(appt)">
+                                                <i class="bi bi-star"></i> Review
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="sc-badge sc-badge-green" style="font-size:11px;"><i class="bi bi-check me-1"></i>Reviewed</span>
+                                        }
+                                    }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div><!-- end sc-content -->
+
+@if (showCancelModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 14px;">
+                <div class="modal-header bg-danger text-white border-0 p-3">
+                    <h5 class="modal-title fw-bold" style="font-size: 16px;"> Cancel Appointment Slot?</h5>
+                    <button type="button" class="btn-close btn-close-white shadow-none" @onclick="CloseCancellationModal"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <p class="text-muted mb-0" style="font-size: 14px; line-height: 1.5;">Are you sure you want to cancel this booking? This slot will be released back to the clinic pool immediately. This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer border-0 p-3 bg-light d-flex justify-content-end gap-2" style="border-bottom-left-radius: 14px; border-bottom-right-radius: 14px;">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" style="border-radius: 6px;" @onclick="CloseCancellationModal">Keep Slot</button>
+                    <button type="button" class="btn btn-danger btn-sm px-3 fw-bold" style="border-radius: 6px;" @onclick="ExecuteAppointmentCancellation">Confirm Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    body { background-color: #F5F8FF !important; }
+    .filter-tab { background: transparent; border: none; color: #4B5563; font-size: 13px; font-weight: 500; border-radius: 6px !important; transition: all 0.1s ease; }
+    .filter-tab:hover { background-color: #F5F8FF; color: #1F4E79; }
+    .filter-tab.active { background-color: #EBF3FB !important; color: #2E75B6 !important; font-weight: 600; }
+    
+    .custom-table thead th { font-size: 12px; text-uppercase: true; color: #6B7280; font-weight: 600; padding: 14px; border: none; }
+    .custom-table tbody td { padding: 14px; border-bottom: 1px solid #F3F4F6; }
+    .avatar-circle-mini { width: 34px; height: 34px; background-color: #D6E4F0; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 18px; }
+    
+    .state-urgency-badge { border-radius: 6px; font-size: 11px; font-weight: 600; }
+    .state-urgency-badge.routine { background-color: #E8F5E9; color: #2E7D32; }
+    .state-urgency-badge.moderate { background-color: #FFF3E0; color: #EF6C00; }
+    .state-urgency-badge.urgent { background-color: #FFEBEE; color: #C62828; animation: pulseEffect 2s infinite; }
+
+    .status-dot-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .status-dot-indicator.booked { background-color: #0288D1; }
+    .status-dot-indicator.confirmed { background-color: #388E3C; }
+    .status-dot-indicator.in-progress { background-color: #FBC02D; }
+    .status-dot-indicator.completed { background-color: #7B1FA2; }
+    .status-dot-indicator.cancelled { background-color: #D32F2F; }
+
+    @@keyframes pulseEffect { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+</style>
+
+<!-- Review Modal -->
+@if (showReviewModal && reviewTarget != null)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div class="sc-card" style="width:100%;max-width:480px;">
+            <div class="sc-card-header">
+                <h2 class="sc-card-title"><i class="bi bi-star me-2 text-warning"></i>Leave a Review</h2>
+                <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="CloseReview"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="sc-card-body">
+                <p style="font-size:14px; color:#374151; margin-bottom:16px;">
+                    Reviewing <strong>Dr. @(reviewTarget.Doctor?.User?.Name)</strong> — @(reviewTarget.Doctor?.Specialty)
+                </p>
+                <div class="sc-form-group">
+                    <label class="sc-form-label">Your Rating</label>
+                    <div class="d-flex gap-2 mt-1">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            int star = i;
+                            <button class="btn p-0" @onclick="() => reviewRating = star" style="border:none;background:transparent;">
+                                <i class="bi @(star <= reviewRating ? "bi-star-fill" : "bi-star")" style="font-size:28px; color:@(star <= reviewRating ? "#F59E0B" : "#D1D5DB");"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-form-label">Comment (Optional)</label>
+                    <textarea class="sc-form-control" rows="4" placeholder="Share your experience..." @bind="reviewComment"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(reviewError))
+                {
+                    <div class="sc-alert sc-alert-danger">@reviewError</div>
+                }
+                <div class="d-flex gap-3 justify-content-end mt-2">
+                    <button class="sc-btn sc-btn-outline" @onclick="CloseReview">Cancel</button>
+                    <button class="sc-btn sc-btn-primary" @onclick="SubmitReview" disabled="@isSubmittingReview">
+                        @if (isSubmittingReview) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Submit Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    private bool isLoading = true;
+    private bool showCancelModal = false;
+    private int selectedApptIdForCancel = 0;
+    private bool showReviewModal = false;
+    private Appointment? reviewTarget;
+    private int reviewRating = 0;
+    private string reviewComment = "";
+    private string? reviewError;
+    private bool isSubmittingReview = false;
+    private HashSet<int> reviewedDoctorIds = new();
+    private string currentPatientId = "";
+    private string activeFilter = "Upcoming";
+    private string statusMessage = string.Empty;
+
+    private List<Appointment> masterAppointmentsList = new();
+    private List<Appointment> filteredAppointments = new();
+    private string patientUserId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FetchPatientLedgerRows();
+    }
+
+    private async Task FetchPatientLedgerRows()
+    {
+        isLoading = true;
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            patientUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            if (!string.IsNullOrEmpty(patientUserId))
+            {
+                masterAppointmentsList = await DbContext.Appointments
+                    .Include(a => a.Doctor)
+                    .ThenInclude(d => d!.User)
+                    .Where(a => a.PatientID == patientUserId)
+                    .OrderByDescending(a => a.AppointmentDateTime)
+                    .ToListAsync();
+
+                currentPatientId = patientUserId;
+                var reviewed = await DbContext.Reviews
+                    .Where(r => r.PatientID == patientUserId)
+                    .Select(r => r.DoctorID)
+                    .ToListAsync();
+                reviewedDoctorIds = new HashSet<int>(reviewed);
+
+                ApplyStatusFilter(activeFilter);
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading appointments: {ex.Message}";
+        }
+        isLoading = false;
+    }
+
+    private void ApplyStatusFilter(string filterType)
+    {
+        activeFilter = filterType;
+        if (masterAppointmentsList == null) return;
+
+        // FIXED: Resolved CS8602 nullability warnings by applying rigorous matching checks
+        filteredAppointments = filterType switch
+        {
+            "Upcoming" => masterAppointmentsList.Where(a => a.Status == "Booked" || a.Status == "Confirmed").ToList(),
+            "Completed" => masterAppointmentsList.Where(a => a.Status == "Completed" || a.Status == "In Progress").ToList(),
+            _ => masterAppointmentsList.ToList()
+        };
+    }
+
+    private void InitiateCancellationRequest(int appointmentId)
+    {
+        selectedApptIdForCancel = appointmentId;
+        showCancelModal = true;
+        statusMessage = string.Empty;
+    }
+
+    private void CloseCancellationModal()
+    {
+        showCancelModal = false;
+        selectedApptIdForCancel = 0;
+    }
+
+    private async Task ExecuteAppointmentCancellation()
+    {
+        if (selectedApptIdForCancel == 0) return;
+
+        try
+        {
+            var targetedRecord = await DbContext.Appointments.FindAsync(selectedApptIdForCancel);
+            if (targetedRecord != null && targetedRecord.PatientID == patientUserId)
+            {
+                targetedRecord.Status = "Cancelled";
+                await DbContext.SaveChangesAsync();
+
+                statusMessage = "Appointment cancelled successfully.";
+                showCancelModal = false;
+                
+                await FetchPatientLedgerRows();
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private void OpenReview(Appointment appt)
+    {
+        reviewTarget = appt;
+        reviewRating = 0;
+        reviewComment = "";
+        reviewError = null;
+        showReviewModal = true;
+    }
+
+    private void CloseReview()
+    {
+        showReviewModal = false;
+        reviewTarget = null;
+    }
+
+    private async Task SubmitReview()
+    {
+        if (reviewRating == 0) { reviewError = "Please select a star rating."; return; }
+        if (reviewTarget == null || string.IsNullOrEmpty(currentPatientId)) return;
+        isSubmittingReview = true;
+        reviewError = null;
+        try
+        {
+            var exists = await DbContext.Reviews
+                .AnyAsync(r => r.DoctorID == reviewTarget.DoctorID && r.PatientID == currentPatientId);
+            if (exists) { reviewError = "You have already reviewed this doctor."; isSubmittingReview = false; return; }
+
+            DbContext.Reviews.Add(new Review
+            {
+                DoctorID = reviewTarget.DoctorID,
+                PatientID = currentPatientId,
+                Rating = reviewRating,
+                Comment = reviewComment,
+                CreatedAt = DateTime.Now
+            });
+
+            var doctor = await DbContext.Doctors.FindAsync(reviewTarget.DoctorID);
+            if (doctor != null)
+            {
+                var ratings = await DbContext.Reviews.Where(r => r.DoctorID == doctor.DoctorID).Select(r => (double)r.Rating).ToListAsync();
+                ratings.Add(reviewRating);
+                doctor.Rating = Math.Round(ratings.Average(), 1);
+            }
+
+            await DbContext.SaveChangesAsync();
+            reviewedDoctorIds.Add(reviewTarget.DoctorID);
+            CloseReview();
+            statusMessage = "Review submitted successfully. Thank you!";
+        }
+        catch (Exception ex)
+        {
+            reviewError = $"Failed to submit: {ex.Message}";
+        }
+        isSubmittingReview = false;
+    }
+}

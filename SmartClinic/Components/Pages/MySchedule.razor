@@ -1,0 +1,285 @@
+@page "/doctor/schedule"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Doctor")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+
+<PageTitle>My Schedule - SmartClinic</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Doctor Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Doctor Portal</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/doctor/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Practice</span>
+            <a href="/doctor/schedule" class="sc-nav-link active"><i class="bi bi-calendar3"></i> My Schedule</a>
+            <a href="/doctor/patients" class="sc-nav-link "><i class="bi bi-people"></i> My Patients</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">📅 My Schedule</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">All appointments, patient profiles, and previous prescriptions</p>
+    </div>
+    <a href="/doctor/dashboard" class="sc-btn sc-btn-outline sc-btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Dashboard
+    </a>
+</div>
+
+<div class="sc-content">
+
+    <!-- Filter bar -->
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-4 gap-3">
+        <div class="sc-filter-group">
+            <button class="sc-filter-btn @(activeFilter == "All" ? "active" : "")" @onclick='() => ApplyFilter("All")'>All (@masterScheduleList.Count)</button>
+            <button class="sc-filter-btn @(activeFilter == "Pending" ? "active" : "")" @onclick='() => ApplyFilter("Pending")'>Upcoming</button>
+            <button class="sc-filter-btn @(activeFilter == "Completed" ? "active" : "")" @onclick='() => ApplyFilter("Completed")'>Completed</button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" style="color:var(--clinic-primary);" role="status"></div>
+            <p class="text-muted mt-2 small">Loading schedule...</p>
+        </div>
+    }
+    else if (!filteredAppointments.Any())
+    {
+        <div class="sc-card text-center py-5">
+            <div class="sc-card-body">
+                <i class="bi bi-calendar-x" style="font-size:48px;color:#D1D5DB;"></i>
+                <h5 style="font-weight:700;margin-top:12px;">No Appointments Found</h5>
+                <p class="text-muted small">No appointments under the "@activeFilter" filter.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Schedule table with patient profile sidebar -->
+        <div class="sc-card">
+            <div class="table-responsive">
+                <table class="sc-table">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Patient</th>
+                            <th>Urgency</th>
+                            <th>Status</th>
+                            <th>Previous Prescriptions</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var appt in filteredAppointments)
+                        {
+                            var prevRx = patientPrescriptions.ContainsKey(appt.PatientID) ? patientPrescriptions[appt.PatientID] : new();
+                            <tr>
+                                <td>
+                                    <div style="font-weight:600;font-size:13.5px;color:#111827;">@appt.AppointmentDateTime.ToString("hh:mm tt")</div>
+                                    <div style="font-size:11.5px;color:#6B7280;">@appt.AppointmentDateTime.ToString("ddd, dd MMM yyyy")</div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="sc-avatar" style="width:36px;height:36px;font-size:13px;flex-shrink:0;">
+                                            @if (!string.IsNullOrEmpty(appt.Patient?.ProfileImage))
+                                            {
+                                                <img src="@appt.Patient.ProfileImage" alt="Patient" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                                            }
+                                            else
+                                            {
+                                                <span>@(appt.Patient?.Name?.Length > 0 ? appt.Patient.Name[0].ToString().ToUpper() : "P")</span>
+                                            }
+                                        </div>
+                                        <div>
+                                            <div style="font-weight:600;font-size:13.5px;">@(appt.Patient?.Name ?? "Patient")</div>
+                                            @if (!string.IsNullOrEmpty(appt.Patient?.BloodGroup))
+                                            {
+                                                <span class="sc-badge sc-badge-red" style="font-size:10px;">@appt.Patient.BloodGroup</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="sc-badge @GetUrgencyBadge(appt.Urgency)">@appt.Urgency</span>
+                                </td>
+                                <td>
+                                    <span class="sc-badge @GetStatusBadge(appt.Status)">@appt.Status</span>
+                                </td>
+                                <td>
+                                    @if (prevRx.Any())
+                                    {
+                                        <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick='() => ViewPrescriptions(appt.PatientID, appt.Patient?.Name ?? "Patient")'>
+                                            <i class="bi bi-file-medical me-1"></i>@prevRx.Count Rx
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span style="font-size:12px;color:#9CA3AF;">None</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2">
+                                        @if (appt.Status == "Booked" || appt.Status == "Confirmed" || appt.Status == "In Progress")
+                                        {
+                                            <a href="/doctor/consultation/@appt.AppointmentID" class="sc-btn sc-btn-primary sc-btn-sm">
+                                                <i class="bi bi-play-fill me-1"></i>Start
+                                            </a>
+                                        }
+                                        <a href="/doctor/patient-history/@appt.PatientID" class="sc-btn sc-btn-outline sc-btn-sm">
+                                            <i class="bi bi-clock-history"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Prescription Viewer Modal -->
+    @if (viewingPatientName != null && viewingRxList.Any())
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;">
+            <div class="sc-card" style="width:100%;max-width:620px;max-height:90vh;overflow-y:auto;">
+                <div class="sc-card-header">
+                    <h2 class="sc-card-title"><i class="bi bi-file-medical me-2 text-primary"></i>@viewingPatientName — Prescriptions</h2>
+                    <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="CloseRxModal"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="sc-card-body">
+                    @foreach (var rx in viewingRxList)
+                    {
+                        <div style="background:#F9FAFB;border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid #E5E7EB;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div style="font-weight:700;font-size:14px;">@(rx.Appointment?.AppointmentDateTime.ToString("dd MMM yyyy") ?? "—")</div>
+                                <span class="sc-badge sc-badge-blue">Rx-@rx.PrescriptionID</span>
+                            </div>
+                            <div style="font-size:13px;color:#374151;margin-bottom:8px;"><strong>Diagnosis:</strong> @(rx.Diagnosis ?? "Not recorded")</div>
+                            @if (rx.Medicines != null && rx.Medicines.Any())
+                            {
+                                <div style="font-size:13px;color:#6B7280;"><strong>Medicines:</strong> @string.Join(", ", rx.Medicines.Select(m => m.MedicineName))</div>
+                            }
+                            @if (!string.IsNullOrEmpty(rx.DoctorNotes))
+                            {
+                                <div style="font-size:12.5px;color:#6B7280;margin-top:6px;"><strong>Notes:</strong> @rx.DoctorNotes</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .sc-filter-group { display:flex;background:#fff;border:1.5px solid #E5E7EB;border-radius:10px;padding:4px;gap:4px; }
+    .sc-filter-btn { background:transparent;border:none;padding:8px 18px;font-size:13px;font-weight:500;color:#6B7280;border-radius:7px;cursor:pointer;transition:all 0.15s; }
+    .sc-filter-btn:hover { background:#F3F4F6;color:#111827; }
+    .sc-filter-btn.active { background:var(--clinic-primary);color:#fff;font-weight:600; }
+</style>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string activeFilter = "All";
+    private List<Appointment> masterScheduleList = new();
+    private List<Appointment> filteredAppointments = new();
+    private Dictionary<string, List<Prescription>> patientPrescriptions = new();
+    private string? viewingPatientName;
+    private List<Prescription> viewingRxList = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            string doctorUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+
+            if (!string.IsNullOrEmpty(doctorUserId))
+            {
+                masterScheduleList = await DbContext.Appointments
+                    .Include(a => a.Patient)
+                    .Where(a => a.Doctor!.UserID == doctorUserId)
+                    .OrderByDescending(a => a.AppointmentDateTime)
+                    .ToListAsync();
+
+                // Load previous prescriptions for each patient
+                var patientIds = masterScheduleList.Select(a => a.PatientID).Distinct().ToList();
+                var allRx = await DbContext.Prescriptions
+                    .Include(p => p.Medicines)
+                    .Include(p => p.Appointment)
+                    .Where(p => patientIds.Contains(p.Appointment!.PatientID))
+                    .ToListAsync();
+
+                patientPrescriptions = allRx
+                    .GroupBy(p => p.Appointment!.PatientID)
+                    .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.Appointment!.AppointmentDateTime).ToList());
+
+                ApplyFilter(activeFilter);
+            }
+        }
+        catch { }
+        isLoading = false;
+    }
+
+    private void ApplyFilter(string filterType)
+    {
+        activeFilter = filterType;
+        filteredAppointments = filterType switch
+        {
+            "Pending" => masterScheduleList.Where(a => a.Status == "Booked" || a.Status == "Confirmed" || a.Status == "In Progress").ToList(),
+            "Completed" => masterScheduleList.Where(a => a.Status == "Completed").ToList(),
+            _ => masterScheduleList.ToList()
+        };
+    }
+
+    private void ViewPrescriptions(string patientId, string name)
+    {
+        viewingPatientName = name;
+        viewingRxList = patientPrescriptions.ContainsKey(patientId) ? patientPrescriptions[patientId] : new();
+    }
+
+    private void CloseRxModal() { viewingPatientName = null; viewingRxList = new(); }
+
+    private string GetUrgencyBadge(string u) => u switch
+    {
+        "Urgent" => "sc-badge-red",
+        "Moderate" => "sc-badge-amber",
+        _ => "sc-badge-green"
+    };
+
+    private string GetStatusBadge(string s) => s switch
+    {
+        "Completed" => "sc-badge-green",
+        "Cancelled" => "sc-badge-gray",
+        "Confirmed" or "Booked" => "sc-badge-blue",
+        _ => "sc-badge-amber"
+    };
+}

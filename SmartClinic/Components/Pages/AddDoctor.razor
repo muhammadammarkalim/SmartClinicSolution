@@ -1,0 +1,373 @@
+@page "/admin/add-doctor"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@using SmartClinic.Data
+@using SmartClinic.Models
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<AppUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject NavigationManager NavManager
+
+<PageTitle>Add New Doctor - SmartClinic Admin</PageTitle>
+
+<div style="max-width:820px; margin:0 auto; padding:28px 16px;">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/admin/doctors" class="sc-btn sc-btn-outline sc-btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        <div>
+            <h1 style="font-size:22px; font-weight:700; margin:0;">Add New Doctor</h1>
+            <p style="font-size:13px; color:#6B7280; margin:0;">Fill in all details to register a new doctor account</p>
+        </div>
+    </div>
+
+    <!-- Success / Error will be shown near the submit actions at the bottom -->
+
+    <div class="sc-card">
+        <div class="sc-card-body">
+
+            <!-- SECTION 1: Account -->
+            <div class="sc-form-section">Account Information</div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Full Name</label>
+                        <input class="sc-form-control" placeholder="Dr. First Last" @bind="name" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Email Address</label>
+                        <input type="email" class="sc-form-control" placeholder="doctor@clinic.com" @bind="email" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Professional -->
+            <div class="sc-form-section">Professional Details</div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Specialty</label>
+                        <select class="sc-form-control sc-form-select" @bind="specialty">
+                            <option value="">Select Specialty</option>
+                            @foreach (var s in specialties)
+                            {
+                                <option value="@s.Name">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Qualifications</label>
+                        <input class="sc-form-control" placeholder="e.g. MBBS, FCPS (Cardiology)" @bind="qualification" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Years of Experience</label>
+                        <input class="sc-form-control" placeholder="e.g. 10 years" @bind="experience" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">License / PMC Number</label>
+                        <input class="sc-form-control" placeholder="e.g. PMC-12345" @bind="licenseNumber" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Hospital Affiliation</label>
+                        <input class="sc-form-control" placeholder="e.g. Aga Khan Hospital" @bind="hospitalAffiliation" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Languages Spoken</label>
+                        <input class="sc-form-control" placeholder="e.g. Urdu, English" @bind="languages" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Consultation Fee (Rs.)</label>
+                        <input type="number" class="sc-form-control" min="0" @bind="fee" />
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Bio / About</label>
+                        <textarea class="sc-form-control" rows="3" placeholder="Brief professional summary..." @bind="bio"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: Schedule -->
+            <div class="sc-form-section">Availability & Schedule</div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Employment Type</label>
+                        <select class="sc-form-control sc-form-select" @bind="employmentType">
+                            <option value="FullTime">Full-Time</option>
+                            <option value="PartTime">Part-Time</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Shift Start</label>
+                        <input type="time" class="sc-form-control" value="@shiftStart" @onchange="@(e => shiftStart = e.Value?.ToString() ?? string.Empty)" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Shift End</label>
+                        <input type="time" class="sc-form-control" value="@shiftEnd" @onchange="@(e => shiftEnd = e.Value?.ToString() ?? string.Empty)" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Appointment Slot Duration</label>
+                        <select class="sc-form-control sc-form-select" @bind="slotDuration">
+                            <option value="15">15 minutes</option>
+                            <option value="20">20 minutes</option>
+                            <option value="30">30 minutes (default)</option>
+                            <option value="45">45 minutes</option>
+                            <option value="60">60 minutes</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="sc-form-label">Working Days</label>
+                    <div class="d-flex flex-wrap gap-2 mt-1">
+                        @foreach (var day in allDays)
+                        {
+                            bool selected = selectedDays.Contains(day);
+                            <button type="button"
+                                    class="sc-btn sc-btn-sm @(selected ? "sc-btn-primary" : "sc-btn-outline")"
+                                    @onclick="() => ToggleDay(day)">
+                                @day
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: Photo -->
+            <div class="sc-form-section">Profile Photo</div>
+            <div class="sc-form-group mb-4">
+                <label class="sc-form-label">Photo URL</label>
+                <input class="sc-form-control" placeholder="https://example.com/doctor-photo.jpg" @bind="photo" />
+                <div style="font-size:12px; color:#6B7280; margin-top:5px;">Enter a direct image URL or leave blank.</div>
+                @if (!string.IsNullOrEmpty(photo))
+                {
+                    <div class="mt-3 d-flex align-items-center gap-3">
+                        <div class="sc-avatar sc-avatar-lg">
+                            <img src="@photo" alt="Preview" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                        </div>
+                        <span style="font-size:13px; color:#6B7280;">Photo preview</span>
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex gap-3 justify-content-end border-top pt-4">
+                <a href="/admin/doctors" class="sc-btn sc-btn-outline">Cancel</a>
+                <button class="sc-btn sc-btn-primary sc-btn-lg" @onclick="CreateDoctor" disabled="@isCreating">
+                    @if (isCreating)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Creating...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-person-plus me-2"></i>
+                        <span>Create Doctor Account</span>
+                    }
+                </button>
+            </div>
+
+            @* Show messages near submit area *@
+            <div class="mt-3">
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="sc-alert sc-alert-success"><i class="bi bi-check-circle me-2"></i>@successMessage</div>
+                }
+                else if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="sc-alert sc-alert-danger"><i class="bi bi-exclamation-circle me-2"></i>@errorMessage</div>
+                }
+            </div>
+
+
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private string name = string.Empty;
+    private string email = string.Empty;
+    private string specialty = string.Empty;
+    private string qualification = string.Empty;
+    private string bio = string.Empty;
+    private string experience = string.Empty;
+    private string licenseNumber = string.Empty;
+    private string hospitalAffiliation = string.Empty;
+    private string languages = string.Empty;
+    private string photo = string.Empty;
+    private decimal fee;
+    private string employmentType = "FullTime";
+    private string shiftStart = "09:00";
+    private string shiftEnd = "17:00";
+    private int slotDuration = 30;
+    private HashSet<string> selectedDays = new() { "Mon", "Tue", "Wed", "Thu", "Fri" };
+    private readonly List<string> allDays = new() { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+
+    private string? successMessage;
+    private string? errorMessage;
+    private bool isCreating = false;
+    private List<Specialty> specialties = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        specialties = await DbContext.Specialties.AsNoTracking().ToListAsync();
+    }
+
+    private void ToggleDay(string day)
+    {
+        if (selectedDays.Contains(day))
+            selectedDays.Remove(day);
+        else
+            selectedDays.Add(day);
+    }
+
+    private async Task CreateDoctor()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email) ||
+            string.IsNullOrWhiteSpace(specialty) || string.IsNullOrWhiteSpace(qualification) ||
+            string.IsNullOrWhiteSpace(bio) || fee <= 0)
+        {
+            errorMessage = "Name, email, specialty, qualification, bio, and fee are required.";
+            return;
+        }
+
+        if (!selectedDays.Any())
+        {
+            errorMessage = "Please select at least one working day.";
+            return;
+        }
+
+        isCreating = true;
+
+        try
+        {
+            // Validate email format strictly
+            var emailValidator = new EmailAddressAttribute();
+            if (!emailValidator.IsValid(email))
+            {
+                errorMessage = "Please enter a valid email address (e.g. doctor@example.com).";
+                return;
+            }
+
+            // Prevent duplicate emails
+            var existing = await UserManager.FindByEmailAsync(email);
+            if (existing != null)
+            {
+                errorMessage = "A user with this email already exists.";
+                return;
+            }
+
+            if (!await RoleManager.RoleExistsAsync("Doctor"))
+                await RoleManager.CreateAsync(new IdentityRole("Doctor"));
+
+            var user = new AppUser
+            {
+                UserName = email,
+                Email = email,
+                Name = name,
+                Role = "Doctor",
+                IsFirstLogin = true
+            };
+
+            var result = await UserManager.CreateAsync(user, "Doctor123!");
+            if (!result.Succeeded)
+            {
+                errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            var roleResult = await UserManager.AddToRoleAsync(user, "Doctor");
+            if (!roleResult.Succeeded)
+            {
+                // cleanup created user to avoid orphaned identity
+                await UserManager.DeleteAsync(user);
+                errorMessage = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                return;
+            }
+
+            // Order days correctly
+            var orderedDays = allDays.Where(d => selectedDays.Contains(d)).ToList();
+
+            var doctor = new Doctor
+            {
+                UserID = user.Id,
+                Specialty = specialty,
+                Qualification = qualification,
+                Bio = bio,
+                ConsultationFee = fee,
+                Experience = experience,
+                LicenseNumber = licenseNumber,
+                HospitalAffiliation = hospitalAffiliation,
+                Languages = languages,
+                Photo = string.IsNullOrWhiteSpace(photo) ? null : photo,
+                IsAvailable = true,
+                EmploymentType = employmentType,
+                ShiftStart = shiftStart,
+                ShiftEnd = shiftEnd,
+                SlotDurationMinutes = slotDuration,
+                WorkingDays = string.Join(",", orderedDays)
+            };
+
+            DbContext.Doctors.Add(doctor);
+            try
+            {
+                await DbContext.SaveChangesAsync();
+            }
+            catch (Exception dbEx)
+            {
+                // If DB save fails, remove the user to avoid inconsistent state
+                await UserManager.DeleteAsync(user);
+                // Surface a helpful error to the admin instead of rethrowing
+                errorMessage = "Database save failed: " + dbEx.Message;
+                Console.WriteLine(dbEx.ToString());
+                return;
+            }
+
+            NavManager.NavigateTo("/admin/doctors");
+        }
+        catch (Exception ex)
+        {
+            // Provide the inner exception message to assist debugging in admin UI
+            var msg = ex.Message;
+            if (ex.InnerException != null) msg += " - " + ex.InnerException.Message;
+            errorMessage = "Failed to create doctor account: " + msg;
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+}

@@ -1,0 +1,391 @@
+@page "/admin/doctors"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<AppUser> UserManager
+@inject NavigationManager NavManager
+
+<PageTitle>Manage Doctors - SmartClinic Admin</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Administration</div>
+        </div>
+        <div class="sc-sidebar-user">
+            <div class="user-name">System Admin</div>
+            <div class="user-role">Administrator</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/admin/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Management</span>
+            <a href="/admin/doctors" class="sc-nav-link active"><i class="bi bi-person-badge"></i> Doctors</a>
+            <a href="/admin/patients" class="sc-nav-link"><i class="bi bi-people"></i> Patients</a>
+            <a href="/admin/specialties" class="sc-nav-link"><i class="bi bi-tag"></i> Specialties</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+        <div class="sc-topbar">
+            <div>
+                <h1 class="page-title">Manage Doctors</h1>
+                <p class="page-sub">@doctors.Count active doctor(s) registered</p>
+            </div>
+            <a href="/admin/add-doctor" class="sc-btn sc-btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Doctor
+            </a>
+        </div>
+
+        <div class="sc-content">
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="sc-alert sc-alert-danger mb-4"><i class="bi bi-exclamation-circle me-2"></i>@errorMessage</div>
+            }
+
+@* Unavailability Modal *@
+@if (showUnavailableModal && unavailableTargetDoctor != null)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div class="sc-card" style="width:100%;max-width:480px;">
+            <div class="sc-card-header">
+                <h2 class="sc-card-title">Mark Unavailable — Dr. @(unavailableTargetDoctor.User?.Name)</h2>
+            </div>
+            <div class="sc-card-body">
+                <div class="mb-3">
+                    <label class="form-label">From</label>
+                    <input type="date" class="form-control" @bind="unavailFrom" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">To</label>
+                    <input type="date" class="form-control" @bind="unavailTo" />
+                </div>
+                <div class="d-flex gap-3 justify-content-end">
+                    <button class="sc-btn sc-btn-outline" @onclick="() => { showUnavailableModal = false; unavailableTargetDoctor = null; }">Cancel</button>
+                    <button class="sc-btn sc-btn-primary" @onclick="SaveUnavailability">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+            <div class="sc-card">
+                @if (!doctors.Any())
+                {
+                    <div class="text-center py-5">
+                        <i class="bi bi-person-badge" style="font-size:40px; color:#D1D5DB;"></i>
+                        <p class="text-muted mt-3 mb-3" style="font-size:14px;">No doctors registered yet.</p>
+                        <a href="/admin/add-doctor" class="sc-btn sc-btn-primary">Add First Doctor</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="sc-table">
+                            <thead>
+                                <tr>
+                                    <th>Doctor</th>
+                                    <th>Specialty</th>
+                                    <th>Schedule</th>
+                                    <th>Fee</th>
+                                    <th>Rating</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var doc in doctors)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-3">
+                                                <div class="sc-avatar" style="width:40px;height:40px;font-size:14px; flex-shrink:0;">
+                                                    @if (!string.IsNullOrEmpty(doc.Photo))
+                                                    {
+                                                        <img src="@doc.Photo" alt="Doctor" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-person-fill" style="font-size:16px;"></i>
+                                                    }
+                                                </div>
+                                                <div>
+                                                    <div style="font-size:13.5px; font-weight:700;">Dr. @(doc.User?.Name ?? "—")</div>
+                                                    <div style="font-size:11.5px; color:#6B7280;">@(doc.User?.Email ?? "—")</div>
+                                                    @if (!string.IsNullOrEmpty(doc.EmploymentType))
+                                                    {
+                                                        <span class="sc-badge @(doc.EmploymentType == "FullTime" ? "sc-badge-blue" : "sc-badge-amber")" style="font-size:10px; margin-top:3px;">
+                                                            @(doc.EmploymentType == "FullTime" ? "Full-Time" : "Part-Time")
+                                                        </span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style="font-size:13px;">@doc.Specialty</td>
+                                        <td>
+                                            <div style="font-size:12px; color:#374151;">
+                                                @if (!string.IsNullOrEmpty(doc.ShiftStart) && !string.IsNullOrEmpty(doc.ShiftEnd))
+                                                {
+                                                    <span>@FormatTime(doc.ShiftStart) &ndash; @FormatTime(doc.ShiftEnd)</span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(doc.WorkingDays))
+                                                {
+                                                    <div style="font-size:11px; color:#6B7280; margin-top:2px;">@doc.WorkingDays.Replace(",", " ")</div>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td style="font-size:13.5px; font-weight:600;">Rs. @doc.ConsultationFee.ToString("N0")</td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <i class="bi bi-star-fill" style="font-size:12px; color:#F59E0B;"></i>
+                                                <span style="font-size:13px; font-weight:600;">@doc.Rating.ToString("0.0")</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (doc.IsAvailable)
+                                            {
+                                                <span class="sc-badge sc-badge-green">Available</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="sc-badge sc-badge-gray">Unavailable</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-2">
+                                                <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="() => EditDoctor(doc.DoctorID)" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="sc-btn sc-btn-sm @(doc.IsAvailable ? "sc-btn-outline" : "sc-btn-success")"
+                                                        @onclick="() => ToggleLeaveStatus(doc)"
+                                                        title="@(doc.IsAvailable ? "Mark Unavailable" : "Mark Available")">
+                                                    <i class="bi @(doc.IsAvailable ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                                </button>
+                                                <button class="sc-btn sc-btn-danger sc-btn-sm" @onclick="() => RequestDelete(doc)" title="Deactivate">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+@if (showDeleteModal && doctorToDelete != null)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div class="sc-card" style="width:100%;max-width:440px;">
+            <div class="sc-card-header" style="background:#FEF2F2; border-bottom-color:#FECACA;">
+                <h2 class="sc-card-title" style="color:#991B1B;">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Confirm Deactivation
+                </h2>
+            </div>
+            <div class="sc-card-body">
+                <p style="font-size:14px; color:#374151;">
+                    Are you sure you want to deactivate <strong>Dr. @(doctorToDelete.User?.Name ?? "this doctor")</strong>?
+                </p>
+                <div class="sc-alert sc-alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    The account will be deactivated and hidden from the registry. All prescriptions and patient records will be preserved.
+                </div>
+                <div class="d-flex gap-3 justify-content-end mt-3">
+                    <button class="sc-btn sc-btn-outline" @onclick="CancelDelete">Cancel</button>
+                    <button class="sc-btn sc-btn-danger" @onclick="ConfirmDelete">Deactivate Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    private List<Doctor> doctors = new();
+
+    private string? errorMessage;
+
+    private bool showDeleteModal = false;
+
+    private Doctor? doctorToDelete;
+
+    // Unavailability modal
+    private bool showUnavailableModal = false;
+    private Doctor? unavailableTargetDoctor;
+    private DateTime? unavailFrom;
+    private DateTime? unavailTo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDoctors();
+    }
+
+    // FIXED FILTER
+    private async Task LoadDoctors()
+    {
+        doctors = await DbContext.Doctors
+            .Include(d => d.User)
+            .Where(d => d.IsDeleted == false)
+            .ToListAsync();
+    }
+
+    private void EditDoctor(int id)
+    {
+        NavManager.NavigateTo($"/admin/edit-doctor/{id}");
+    }
+
+    private string FormatTime(string? t)
+    {
+        if (string.IsNullOrEmpty(t)) return t ?? "";
+        if (TimeSpan.TryParse(t, out var ts))
+        {
+            var dt = DateTime.Today.Add(ts);
+            return dt.ToString("h:mm tt");
+        }
+        return t;
+    }
+
+    private async Task ToggleLeaveStatus(Doctor doc)
+    {
+        // If currently available, open modal to set unavailability range
+        if (doc.IsAvailable)
+        {
+            unavailableTargetDoctor = doc;
+            // default range: today -> 7 days
+            unavailFrom = DateTime.Today;
+            unavailTo = DateTime.Today.AddDays(7);
+            showUnavailableModal = true;
+            return;
+        }
+
+        // If currently unavailable, mark available and clear range
+        var entry = await DbContext.Doctors.FindAsync(doc.DoctorID);
+        if (entry != null)
+        {
+            entry.IsAvailable = true;
+            entry.UnavailableFrom = null;
+            entry.UnavailableTo = null;
+            await DbContext.SaveChangesAsync();
+        }
+
+        await LoadDoctors();
+    }
+
+    private void RequestDelete(Doctor doc)
+    {
+        doctorToDelete = doc;
+
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        doctorToDelete = null;
+
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (doctorToDelete == null)
+            return;
+
+        errorMessage = null;
+
+        try
+        {
+            var targetDoctorId = doctorToDelete.DoctorID;
+
+            var targetUserId = doctorToDelete.UserID;
+
+            // SOFT DELETE
+            var doctorEntry =
+                await DbContext.Doctors.FindAsync(targetDoctorId);
+
+            if (doctorEntry != null)
+            {
+                doctorEntry.IsDeleted = true;
+
+                doctorEntry.IsAvailable = false;
+
+                await DbContext.SaveChangesAsync();
+            }
+
+            // LOGIN LOCK
+            var linkedUser =
+                await UserManager.FindByIdAsync(targetUserId);
+
+            if (linkedUser != null)
+            {
+                linkedUser.LockoutEnabled = true;
+
+                await UserManager.SetLockoutEndDateAsync(
+                    linkedUser,
+                    DateTimeOffset.UtcNow.AddYears(100)
+                );
+            }
+
+            showDeleteModal = false;
+
+            doctorToDelete = null;
+
+            await LoadDoctors();
+        }
+        catch (Exception ex)
+        {
+            showDeleteModal = false;
+
+            doctorToDelete = null;
+
+            errorMessage =
+                $"An unexpected error occurred during deactivation: {ex.Message}";
+
+            Console.WriteLine(ex.ToString());
+        }
+    }
+
+    private async Task SaveUnavailability()
+    {
+        if (unavailableTargetDoctor == null) return;
+        if (!unavailFrom.HasValue || !unavailTo.HasValue) return;
+        if (unavailTo < unavailFrom) return;
+
+        var entry = await DbContext.Doctors.FindAsync(unavailableTargetDoctor.DoctorID);
+        if (entry != null)
+        {
+            entry.IsAvailable = false;
+            entry.UnavailableFrom = unavailFrom;
+            entry.UnavailableTo = unavailTo;
+            await DbContext.SaveChangesAsync();
+        }
+
+        showUnavailableModal = false;
+        unavailableTargetDoctor = null;
+        await LoadDoctors();
+    }
+
+}

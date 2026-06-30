@@ -1,0 +1,42 @@
+﻿@page "/redirecting"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+
+@using System.Security.Claims
+
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Loading your Workspace... - MediBook</PageTitle>
+
+<div class="container text-center py-5" style="margin-top: 100px; margin-bottom: 100px;">
+    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+    <h4 class="fw-bold text-dark">Verifying Credentials</h4>
+    <p class="text-muted small">Loading your authorized clinical workspace environment...</p>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        // Automatically evaluates assigned identity roles to coordinate user destination paths
+        if (user.IsInRole("Admin"))
+        {
+            NavManager.NavigateTo("/admin/dashboard");
+        }
+        else if (user.IsInRole("Doctor"))
+        {
+            NavManager.NavigateTo("/doctor/dashboard");
+        }
+        else
+        {
+            // Default baseline destination fallback for standard logged-in patients
+            NavManager.NavigateTo("/dashboard");
+        }
+    }
+}

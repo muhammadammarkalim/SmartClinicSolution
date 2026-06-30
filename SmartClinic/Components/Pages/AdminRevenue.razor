@@ -1,0 +1,240 @@
+@page "/admin/revenue"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.AspNetCore.Authorization
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Revenue - SmartClinic Admin</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Administration</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/admin/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Management</span>
+            <a href="/admin/doctors" class="sc-nav-link"><i class="bi bi-person-badge"></i> Doctors</a>
+            <a href="/admin/patients" class="sc-nav-link"><i class="bi bi-people"></i> Patients</a>
+            <a href="/admin/specialties" class="sc-nav-link"><i class="bi bi-tag"></i> Specialties</a>
+            <a href="/admin/revenue" class="sc-nav-link active"><i class="bi bi-graph-up-arrow"></i> Revenue</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">Revenue Dashboard</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">Revenue generated from completed patient visits and consultations</p>
+    </div>
+    <div>
+        <select class="sc-form-control sc-form-select" @bind="selectedMonth" @bind:after="LoadRevenue" style="min-width:160px;">
+            <option value="0">All Time</option>
+            @for (int m = 1; m <= 12; m++)
+            {
+                <option value="@m">@System.Globalization.DateTimeFormatInfo.CurrentInfo.GetMonthName(m) @currentYear</option>
+            }
+        </select>
+    </div>
+</div>
+
+<div class="sc-content">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" style="color:var(--clinic-primary);" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <!-- Summary Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="sc-stat">
+                    <div class="sc-stat-icon green"><i class="bi bi-currency-dollar"></i></div>
+                    <div>
+                        <div class="sc-stat-value">Rs. @totalRevenue.ToString("N0")</div>
+                        <div class="sc-stat-label">Total Revenue</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="sc-stat">
+                    <div class="sc-stat-icon blue"><i class="bi bi-check-circle"></i></div>
+                    <div>
+                        <div class="sc-stat-value">@completedVisits</div>
+                        <div class="sc-stat-label">Completed Visits</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="sc-stat">
+                    <div class="sc-stat-icon amber"><i class="bi bi-graph-up"></i></div>
+                    <div>
+                        <div class="sc-stat-value">Rs. @avgPerVisit.ToString("N0")</div>
+                        <div class="sc-stat-label">Avg per Visit</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="sc-stat">
+                    <div class="sc-stat-icon blue"><i class="bi bi-people"></i></div>
+                    <div>
+                        <div class="sc-stat-value">@uniquePatients</div>
+                        <div class="sc-stat-label">Unique Patients</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue by Doctor -->
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="sc-card">
+                    <div class="sc-card-header">
+                        <h2 class="sc-card-title">Revenue by Doctor</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="sc-table">
+                            <thead>
+                                <tr>
+                                    <th>Doctor</th>
+                                    <th>Specialty</th>
+                                    <th>Visits</th>
+                                    <th>Fee/Visit</th>
+                                    <th>Total</th>
+                                    <th>Share</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var dr in doctorRevenue)
+                                {
+                                    var pct = totalRevenue > 0 ? (int)(dr.Revenue * 100 / totalRevenue) : 0;
+                                    <tr>
+                                        <td>
+                                            <div style="font-weight:600;font-size:13.5px;">@dr.DoctorName</div>
+                                        </td>
+                                        <td><span class="sc-badge sc-badge-blue" style="font-size:11px;">@dr.Specialty</span></td>
+                                        <td style="font-size:14px;font-weight:600;">@dr.Visits</td>
+                                        <td style="font-size:13px;color:#6B7280;">Rs. @dr.Fee.ToString("N0")</td>
+                                        <td style="font-weight:700;color:#10B981;">Rs. @dr.Revenue.ToString("N0")</td>
+                                        <td>
+                                            <div style="display:flex;align-items:center;gap:8px;">
+                                                <div style="flex:1;background:#E5E7EB;border-radius:4px;height:8px;min-width:60px;">
+                                                    <div style="height:8px;border-radius:4px;background:var(--clinic-primary);width:@pct%;"></div>
+                                                </div>
+                                                <span style="font-size:12px;color:#6B7280;">@pct%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="sc-card">
+                    <div class="sc-card-header">
+                        <h2 class="sc-card-title">Recent Paid Visits</h2>
+                    </div>
+                    <div style="max-height:400px;overflow-y:auto;">
+                        @foreach (var visit in recentVisits)
+                        {
+                            <div style="padding:14px 22px;border-bottom:1px solid var(--clinic-border);display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <div style="font-weight:600;font-size:13.5px;color:#111827;">@(visit.Patient?.Name ?? "Patient")</div>
+                                    <div style="font-size:12px;color:#6B7280;">Dr. @(visit.Doctor?.User?.Name) • @visit.AppointmentDateTime.ToString("dd MMM yyyy")</div>
+                                </div>
+                                <div style="font-weight:700;color:#10B981;font-size:14px;">Rs. @(visit.Doctor?.ConsultationFee.ToString("N0") ?? "0")</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private int selectedMonth = 0;
+    private int currentYear = DateTime.Now.Year;
+    private decimal totalRevenue = 0;
+    private int completedVisits = 0;
+    private decimal avgPerVisit = 0;
+    private int uniquePatients = 0;
+    private List<DoctorRevenueRow> doctorRevenue = new();
+    private List<Appointment> recentVisits = new();
+
+    protected override async Task OnInitializedAsync() => await LoadRevenue();
+
+    private async Task LoadRevenue()
+    {
+        isLoading = true;
+        try
+        {
+            var query = DbContext.Appointments
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Patient)
+                .Where(a => a.Status == "Completed");
+
+            if (selectedMonth > 0)
+                query = query.Where(a => a.AppointmentDateTime.Month == selectedMonth && a.AppointmentDateTime.Year == currentYear);
+
+            var visits = await query.OrderByDescending(a => a.AppointmentDateTime).ToListAsync();
+
+            completedVisits = visits.Count;
+            uniquePatients = visits.Select(v => v.PatientID).Distinct().Count();
+            totalRevenue = visits.Sum(v => (decimal)(v.Doctor?.ConsultationFee ?? 0));
+            avgPerVisit = completedVisits > 0 ? totalRevenue / completedVisits : 0;
+
+            doctorRevenue = visits
+                .Where(v => v.Doctor != null)
+                .GroupBy(v => v.DoctorID)
+                .Select(g => new DoctorRevenueRow
+                {
+                    DoctorName = g.First().Doctor!.User?.Name ?? "Unknown",
+                    Specialty = g.First().Doctor!.Specialty,
+                    Visits = g.Count(),
+                    Fee = (decimal)(g.First().Doctor!.ConsultationFee),
+                    Revenue = g.Sum(v => (decimal)(v.Doctor!.ConsultationFee))
+                })
+                .OrderByDescending(d => d.Revenue)
+                .ToList();
+
+            recentVisits = visits.Take(15).ToList();
+        }
+        catch { }
+        isLoading = false;
+    }
+
+    private class DoctorRevenueRow
+    {
+        public string DoctorName { get; set; } = "";
+        public string Specialty { get; set; } = "";
+        public int Visits { get; set; }
+        public decimal Fee { get; set; }
+        public decimal Revenue { get; set; }
+    }
+}

@@ -1,0 +1,244 @@
+@page "/admin/specialties"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.AspNetCore.Authorization
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Manage Specialties - SmartClinic Admin</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Administration</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/admin/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Management</span>
+            <a href="/admin/doctors" class="sc-nav-link"><i class="bi bi-person-badge"></i> Doctors</a>
+            <a href="/admin/patients" class="sc-nav-link "><i class="bi bi-people"></i> Patients</a>
+            <a href="/admin/specialties" class="sc-nav-link active"><i class="bi bi-tag"></i> Specialties</a>
+            <a href="/admin/revenue" class="sc-nav-link"><i class="bi bi-graph-up-arrow"></i> Revenue</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">🏷️ Manage Specialties</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">Add, edit, and manage clinic medical specialties with icons</p>
+    </div>
+    <span class="sc-badge sc-badge-blue">@specialties.Count Specialties</span>
+</div>
+
+<div class="sc-content">
+
+    <!-- Show messages near the add action area -->
+
+    <!-- Add Specialty -->
+    <div class="sc-card mb-4">
+        <div class="sc-card-header">
+            <h2 class="sc-card-title"><i class="bi bi-plus-circle me-2 text-success"></i>Add New Specialty</h2>
+        </div>
+        <div class="sc-card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="sc-form-label">Specialty Name</label>
+                    <input class="sc-form-control" placeholder="e.g. Cardiology" @bind="newName" />
+                </div>
+                <div class="col-md-5">
+                    <label class="sc-form-label">Icon (Emoji or Image URL)</label>
+                    <div class="d-flex gap-2">
+                        <input class="sc-form-control" placeholder="e.g. 🫀 or https://example.com/icon.png" @bind="newIcon" style="flex:1;" />
+                        <div style="width:46px;height:46px;border:1.5px solid #E5E7EB;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#F9FAFB;font-size:22px;flex-shrink:0;">
+                            @if (!string.IsNullOrEmpty(newIcon) && (newIcon.StartsWith("http") || newIcon.StartsWith("/")))
+                            {
+                                <img src="@newIcon" alt="preview" style="width:30px;height:30px;object-fit:contain;" />
+                            }
+                            else
+                            {
+                                @newIcon
+                            }
+                        </div>
+                    </div>
+                    <p style="font-size:11.5px;color:#9CA3AF;margin-top:4px;">Use an emoji (🫀) or paste any image URL for the icon</p>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="sc-btn sc-btn-primary w-100" @onclick="AddSpecialty" disabled="@isSaving">
+                        @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-plus-lg me-1"></i> Add Specialty
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="sc-alert sc-alert-success mb-0"><i class="bi bi-check-circle me-2"></i>@successMsg</div>
+        }
+        else if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="sc-alert sc-alert-danger mb-0"><i class="bi bi-exclamation-circle me-2"></i>@errorMsg</div>
+        }
+    </div>
+
+    <!-- Specialty Grid/Table -->
+    @if (!specialties.Any())
+    {
+        <div class="sc-card text-center py-5">
+            <div class="sc-card-body">
+                <i class="bi bi-tag" style="font-size:48px;color:#D1D5DB;"></i>
+                <h5 style="margin-top:12px;font-weight:700;">No Specialties Yet</h5>
+                <p class="text-muted small">Add your first specialty above to get started.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Card view -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:24px;">
+            @foreach (var spec in specialties)
+            {
+                <div class="sc-card" style="transition:box-shadow 0.2s;">
+                    <div class="sc-card-body" style="display:flex;align-items:center;gap:16px;">
+                        <div style="width:54px;height:54px;border-radius:14px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">
+                            @if (!string.IsNullOrEmpty(spec.Icon) && (spec.Icon.StartsWith("http") || spec.Icon.StartsWith("/")))
+                            {
+                                <img src="@spec.Icon" alt="@spec.Name" style="width:34px;height:34px;object-fit:contain;" />
+                            }
+                            else
+                            {
+                                @spec.Icon
+                            }
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;font-size:14px;color:#111827;">@spec.Name</div>
+                            <div style="font-size:11px;color:#9CA3AF;">ID: @spec.SpecialtyID</div>
+                        </div>
+                        <button class="sc-btn sc-btn-danger sc-btn-sm" @onclick="() => ConfirmDelete(spec)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Delete Confirm -->
+    @if (deleteTarget != null)
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;">
+            <div class="sc-card" style="max-width:380px;width:100%;">
+                <div class="sc-card-body text-center">
+                    <i class="bi bi-exclamation-triangle" style="font-size:40px;color:#EF4444;"></i>
+                    <h5 style="font-weight:700;margin:12px 0 6px;">Delete Specialty?</h5>
+                    <p style="color:#6B7280;font-size:14px;">This will permanently remove <strong>@deleteTarget.Name</strong>. Doctors currently assigned this specialty may be affected.</p>
+                    <div class="d-flex gap-3 justify-content-center mt-4">
+                        <button class="sc-btn sc-btn-outline" @onclick="() => deleteTarget = null">Cancel</button>
+                        <button class="sc-btn sc-btn-danger" @onclick="ExecuteDelete">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+    </div>
+</div>
+
+@code {
+    private List<Specialty> specialties = new();
+    private string newName = "";
+    private string newIcon = "";
+    private bool isSaving = false;
+    private string successMsg = "";
+    private string errorMsg = "";
+    private Specialty? deleteTarget;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSpecialties();
+    }
+
+    private async Task LoadSpecialties()
+    {
+        specialties = await DbContext.Specialties.OrderBy(s => s.Name).ToListAsync();
+    }
+
+    private async Task AddSpecialty()
+    {
+        successMsg = ""; errorMsg = "";
+        if (string.IsNullOrWhiteSpace(newName)) { errorMsg = "Specialty name is required."; return; }
+
+        // Basic input length checks to avoid DB truncation errors when migrations are not applied
+        if (!string.IsNullOrEmpty(newName) && newName.Length > 50)
+        {
+            errorMsg = "Specialty name must be 50 characters or fewer.";
+            return;
+        }
+        if (!string.IsNullOrEmpty(newIcon) && newIcon.Length > 255)
+        {
+            errorMsg = "Icon URL is too long (max 255 characters). Use a shorter URL or an emoji.";
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var specialty = new Specialty { Name = newName.Trim(), Icon = string.IsNullOrWhiteSpace(newIcon) ? "🏥" : newIcon.Trim() };
+            DbContext.Specialties.Add(specialty);
+            await DbContext.SaveChangesAsync();
+            successMsg = $"'{specialty.Name}' added successfully!";
+            newName = ""; newIcon = "";
+            await LoadSpecialties();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+        {
+            // Surface inner-most database error to help debugging (e.g., column length mismatch)
+            errorMsg = "Failed to add: " + dbEx.GetBaseException().Message;
+            Console.WriteLine(dbEx.ToString());
+        }
+        catch (Exception ex)
+        {
+            errorMsg = "Failed to add: " + ex.Message;
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ConfirmDelete(Specialty spec) => deleteTarget = spec;
+
+    private async Task ExecuteDelete()
+    {
+        if (deleteTarget == null) return;
+        try
+        {
+            DbContext.Specialties.Remove(deleteTarget);
+            await DbContext.SaveChangesAsync();
+            successMsg = $"'{deleteTarget.Name}' deleted.";
+            deleteTarget = null;
+            await LoadSpecialties();
+        }
+        catch (Exception ex) { errorMsg = "Failed to delete: " + ex.Message; deleteTarget = null; }
+    }
+}

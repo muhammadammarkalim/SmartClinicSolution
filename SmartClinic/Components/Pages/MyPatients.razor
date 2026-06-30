@@ -1,0 +1,381 @@
+@page "/doctor/patients"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Doctor")]
+
+@using Microsoft.AspNetCore.Authorization
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+
+<PageTitle>My Patients - SmartClinic</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Doctor Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Doctor Portal</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/doctor/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Practice</span>
+            <a href="/doctor/schedule" class="sc-nav-link "><i class="bi bi-calendar3"></i> My Schedule</a>
+            <a href="/doctor/patients" class="sc-nav-link active"><i class="bi bi-people"></i> My Patients</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">👥 My Patients</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">All patients you have seen — view profiles, history, and edit prescriptions</p>
+    </div>
+    <span class="sc-badge sc-badge-blue">@distinctPatients.Count Patients</span>
+</div>
+
+<div class="sc-content">
+
+    <!-- Search -->
+    <div class="sc-card mb-4">
+        <div class="sc-card-body" style="padding:14px 22px;">
+            <div style="position:relative;">
+                <i class="bi bi-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#9CA3AF;"></i>
+                <input type="text" class="sc-form-control" style="padding-left:36px;" placeholder="Search patients..."
+                       @bind="searchQuery" @bind:event="oninput" />
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" style="color:var(--clinic-primary);" role="status"></div>
+        </div>
+    }
+    else if (!filteredPatients.Any())
+    {
+        <div class="sc-card text-center py-5">
+            <div class="sc-card-body">
+                <i class="bi bi-people" style="font-size:48px;color:#D1D5DB;"></i>
+                <h5 style="margin-top:12px;font-weight:700;">No Patients Found</h5>
+                <p class="text-muted small">Patients will appear here after you complete consultations.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="sc-card">
+            <div class="table-responsive">
+                <table class="sc-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Blood Group</th>
+                            <th>Gender</th>
+                            <th>Visits</th>
+                            <th>Prescriptions</th>
+                            <th>Last Visit</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var patient in filteredPatients)
+                        {
+                            var stats = patientStats.ContainsKey(patient.Id) ? patientStats[patient.Id] : (0, 0, (DateTime?)null);
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="sc-avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0;">
+                                            @if (!string.IsNullOrEmpty(patient.ProfileImage))
+                                            {
+                                                <img src="@patient.ProfileImage" alt="Patient" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                                            }
+                                            else
+                                            {
+                                                <span>@(patient.Name?.Length > 0 ? patient.Name[0].ToString().ToUpper() : "P")</span>
+                                            }
+                                        </div>
+                                        <div>
+                                            <div style="font-weight:600;font-size:14px;color:#111827;">@patient.Name</div>
+                                            <div style="font-size:11.5px;color:#9CA3AF;">@patient.Email</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(patient.BloodGroup))
+                                    {
+                                        <span class="sc-badge sc-badge-red">@patient.BloodGroup</span>
+                                    }
+                                    else { <span style="color:#9CA3AF;font-size:12px;">—</span> }
+                                </td>
+                                <td style="font-size:13px;color:#374151;">@(patient.Gender ?? "—")</td>
+                                <td><span class="sc-badge sc-badge-blue">@stats.Item1</span></td>
+                                <td><span class="sc-badge @(stats.Item2 > 0 ? "sc-badge-green" : "sc-badge-gray")">@stats.Item2</span></td>
+                                <td style="font-size:12.5px;color:#6B7280;">@(stats.Item3?.ToString("dd MMM yyyy") ?? "—")</td>
+                                <td>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="() => ViewPatient(patient)">
+                                            <i class="bi bi-person me-1"></i>Profile
+                                        </button>
+                                        <a href="/doctor/patient-history/@patient.Id" class="sc-btn sc-btn-primary sc-btn-sm">
+                                            <i class="bi bi-clock-history me-1"></i>History
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Patient Profile Modal -->
+    @if (viewingPatient != null)
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;">
+            <div class="sc-card" style="width:100%;max-width:700px;max-height:90vh;overflow-y:auto;">
+                <div class="sc-card-header">
+                    <h2 class="sc-card-title"><i class="bi bi-person-circle me-2"></i>@viewingPatient.Name</h2>
+                    <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="CloseModal"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="sc-card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div style="background:#F9FAFB;border-radius:10px;padding:16px;">
+                                <h6 style="font-size:11px;text-transform:uppercase;color:#6B7280;font-weight:700;margin-bottom:12px;">Profile</h6>
+                                <div class="d-flex flex-column gap-2" style="font-size:13.5px;">
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Email:</span> @viewingPatient.Email</div>
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Gender:</span> @(viewingPatient.Gender ?? "—")</div>
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Blood Group:</span>
+                                        @if (!string.IsNullOrEmpty(viewingPatient.BloodGroup))
+                                        {
+                                            <span class="sc-badge sc-badge-red ms-1">@viewingPatient.BloodGroup</span>
+                                        }
+                                        else { <span>—</span> }
+                                    </div>
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Date of Birth:</span> @(viewingPatient.DateOfBirth?.ToString("dd MMM yyyy") ?? "—")</div>
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Address:</span> @(viewingPatient.Address ?? "—")</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div style="background:#F9FAFB;border-radius:10px;padding:16px;">
+                                <h6 style="font-size:11px;text-transform:uppercase;color:#6B7280;font-weight:700;margin-bottom:12px;">Emergency</h6>
+                                <div class="d-flex flex-column gap-2" style="font-size:13.5px;">
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Contact:</span> @(viewingPatient.EmergencyContact ?? "—")</div>
+                                    <div><span style="color:#9CA3AF;font-size:12px;">Phone:</span> @(viewingPatient.EmergencyPhone ?? "—")</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Prescriptions for this patient -->
+                    @if (viewingRxList.Any())
+                    {
+                        <h6 style="font-weight:700;font-size:13px;margin-bottom:10px;">Prescription History</h6>
+                        @foreach (var rx in viewingRxList)
+                        {
+                            <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:14px;margin-bottom:10px;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span style="font-weight:600;font-size:13px;">@(rx.Appointment?.AppointmentDateTime.ToString("dd MMM yyyy") ?? "—")</span>
+                                    <div class="d-flex gap-2">
+                                        <span class="sc-badge sc-badge-blue">Rx-@rx.PrescriptionID</span>
+                                        <button class="sc-btn sc-btn-outline sc-btn-sm" style="padding:3px 10px;font-size:11px;" @onclick="() => EditRx(rx)">
+                                            <i class="bi bi-pencil"></i> Edit
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style="font-size:13px;color:#374151;"><strong>Diagnosis:</strong> @(rx.Diagnosis ?? "—")</div>
+                                @if (rx.Medicines?.Any() == true)
+                                {
+                                    <div style="font-size:12.5px;color:#6B7280;margin-top:4px;"><strong>Medicines:</strong> @string.Join(", ", rx.Medicines.Select(m => m.MedicineName))</div>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p style="color:#9CA3AF;font-size:13.5px;text-align:center;padding:20px 0;">No prescriptions on record for this patient.</p>
+                    }
+
+                    <div class="d-flex gap-3 justify-content-end mt-2">
+                        <a href="/doctor/patient-history/@viewingPatient.Id" class="sc-btn sc-btn-primary sc-btn-sm">Full History</a>
+                        <button class="sc-btn sc-btn-outline" @onclick="CloseModal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Edit Prescription Modal -->
+    @if (editingRx != null)
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1060;display:flex;align-items:center;justify-content:center;padding:20px;">
+            <div class="sc-card" style="width:100%;max-width:500px;">
+                <div class="sc-card-header">
+                    <h2 class="sc-card-title"><i class="bi bi-pencil-square me-2"></i>Edit Prescription Rx-@editingRx.PrescriptionID</h2>
+                    <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="CloseEditModal"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="sc-card-body">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Diagnosis</label>
+                        <input class="sc-form-control" @bind="editDiagnosis" placeholder="Diagnosis" />
+                    </div>
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Notes</label>
+                        <textarea class="sc-form-control" rows="3" @bind="editNotes" placeholder="Doctor notes..."></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(editError))
+                    {
+                        <div class="sc-alert sc-alert-danger">@editError</div>
+                    }
+                    @if (!string.IsNullOrEmpty(editSuccess))
+                    {
+                        <div class="sc-alert sc-alert-success">@editSuccess</div>
+                    }
+                    <div class="d-flex gap-3 justify-content-end">
+                        <button class="sc-btn sc-btn-outline" @onclick="CloseEditModal">Cancel</button>
+                        <button class="sc-btn sc-btn-primary" @onclick="SaveRx" disabled="@isSavingRx">
+                            @if (isSavingRx) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<AppUser> distinctPatients = new();
+    private List<AppUser> filteredPatients = new();
+    private string searchQueryBacking = "";
+    private string searchQuery
+    {
+        get => searchQueryBacking;
+        set
+        {
+            searchQueryBacking = value;
+            FilterPatients();
+        }
+    }
+    private Dictionary<string, (int, int, DateTime?)> patientStats = new();
+    private AppUser? viewingPatient;
+    private List<Prescription> viewingRxList = new();
+    private Prescription? editingRx;
+    private string editDiagnosis = "";
+    private string editNotes = "";
+    private string editError = "";
+    private string editSuccess = "";
+    private bool isSavingRx = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        string userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+
+        var appts = await DbContext.Appointments
+            .Include(a => a.Patient)
+            .Include(a => a.Prescription)
+            .Where(a => a.Doctor!.UserID == userId)
+            .ToListAsync();
+
+        distinctPatients = appts
+            .Where(a => a.Patient != null)
+            .Select(a => a.Patient!)
+            .GroupBy(p => p.Id)
+            .Select(g => g.First())
+            .OrderBy(p => p.Name)
+            .ToList();
+
+        patientStats = distinctPatients.ToDictionary(
+            p => p.Id,
+            p => (
+                appts.Count(a => a.PatientID == p.Id),
+                appts.Count(a => a.PatientID == p.Id && a.Prescription != null),
+                appts.Where(a => a.PatientID == p.Id).OrderByDescending(a => a.AppointmentDateTime).FirstOrDefault()?.AppointmentDateTime
+            )
+        );
+
+        FilterPatients();
+        isLoading = false;
+    }
+
+    private void FilterPatients()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+            filteredPatients = distinctPatients;
+        else
+        {
+            var q = searchQuery.ToLower();
+            filteredPatients = distinctPatients.Where(p =>
+                (p.Name?.ToLower().Contains(q) ?? false) ||
+                (p.Email?.ToLower().Contains(q) ?? false)
+            ).ToList();
+        }
+    }
+
+    private async Task ViewPatient(AppUser patient)
+    {
+        viewingPatient = patient;
+        viewingRxList = await DbContext.Prescriptions
+            .Include(p => p.Medicines)
+            .Include(p => p.Appointment)
+            .Where(p => p.Appointment!.PatientID == patient.Id)
+            .OrderByDescending(p => p.Appointment!.AppointmentDateTime)
+            .ToListAsync();
+    }
+
+    private void CloseModal() { viewingPatient = null; viewingRxList = new(); }
+
+    private void EditRx(Prescription rx)
+    {
+        editingRx = rx;
+        editDiagnosis = rx.Diagnosis ?? "";
+        editNotes = rx.DoctorNotes ?? "";
+        editError = ""; editSuccess = "";
+    }
+
+    private void CloseEditModal() { editingRx = null; editError = ""; editSuccess = ""; }
+
+    private async Task SaveRx()
+    {
+        if (editingRx == null) return;
+        isSavingRx = true;
+        editError = ""; editSuccess = "";
+        try
+        {
+            var rx = await DbContext.Prescriptions.FindAsync(editingRx.PrescriptionID);
+            if (rx != null)
+            {
+                rx.Diagnosis = editDiagnosis;
+                rx.DoctorNotes = editNotes;
+                await DbContext.SaveChangesAsync();
+                editSuccess = "Prescription updated successfully.";
+                // Refresh the viewing list
+                if (viewingPatient != null) await ViewPatient(viewingPatient);
+            }
+        }
+        catch (Exception ex) { editError = "Failed: " + ex.Message; }
+        isSavingRx = false;
+    }
+}

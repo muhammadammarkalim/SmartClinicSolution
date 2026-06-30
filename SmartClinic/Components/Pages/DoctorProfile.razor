@@ -1,0 +1,196 @@
+@page "/doctors/{DoctorId:int}"
+@rendermode InteractiveServer
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>@doctorName's Profile - MediBook</PageTitle>
+
+<div class="container py-5" style="margin-top: 20px; margin-bottom: 60px;">
+    @if (isNotFound)
+    {
+        <div class="alert alert-warning text-center shadow-sm border-0 p-4 rounded-3">
+            <h4 class="fw-bold">⚠️ Doctor Profile Not Found</h4>
+            <p class="text-muted mb-3">The medical practitioner profile you are trying to access does not exist or has been modified.</p>
+            <a href="/doctors" class="btn text-white fw-semibold px-4" style="background-color: #2E75B6; border-radius: 8px;">Back to Directory</a>
+        </div>
+    }
+    else if (currentDoctor == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 small">Loading clinician medical record matrix...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="bg-white p-4 shadow-sm border-0 mb-4" style="border-radius: 16px;">
+                    <div class="d-flex flex-column flex-sm-row align-items-center align-items-sm-start gap-4 mb-4">
+                        <div class="sc-avatar sc-avatar-xl">
+                            @if (!string.IsNullOrEmpty(currentDoctor.Photo))
+                            {
+                                <img src="@currentDoctor.Photo" alt="Dr. @currentDoctor.User?.Name" />
+                            }
+                            else
+                            {
+                                <i class="bi bi-person-fill" style="font-size:40px;"></i>
+                            }
+                        </div>
+                        <div class="text-center text-sm-start flex-grow-1">
+                            <h3 class="fw-bold text-dark mb-1">@currentDoctor.User?.Name</h3>
+                            <span class="badge bg-light text-primary border border-primary-subtle px-3 py-2 fw-bold mb-2" style="color: #2E75B6 !important; font-size: 12px; border-radius: 20px;">
+                                @currentDoctor.Specialty
+                            </span>
+                            <p class="text-muted small mb-2"><strong>Credentials:</strong> @currentDoctor.Qualification</p>
+                            <div class="d-flex justify-content-center justify-content-sm-start align-items-center gap-2 text-warning fw-bold">
+                                @for (int s = 1; s <= 5; s++)
+                                {
+                                    int star = s;
+                                    <i class="bi @(star <= Math.Round(currentDoctor.Rating) ? "bi-star-fill" : "bi-star")" style="font-size:15px; color:@(star <= Math.Round(currentDoctor.Rating) ? "#F59E0B" : "#D1D5DB");"></i>
+                                }
+                                <span class="text-muted fw-normal small ms-1">@currentDoctor.Rating.ToString("0.0") / 5.0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="text-muted my-4" />
+
+                    <h5 class="fw-bold text-dark mb-2">Biography & Specialization Objectives</h5>
+                    <p class="text-muted regular-text" style="font-size: 14px; line-height: 1.6;">
+                        @currentDoctor.Bio
+                    </p>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-sm-6">
+                            <div class="p-3 rounded-3" style="background-color: #F5F8FF; border: 1px solid #E5E7EB;">
+                                <span class="small text-muted d-block text-uppercase fw-semibold mb-1">📅 Clinic Timing</span>
+                                @if (!string.IsNullOrEmpty(currentDoctor.ShiftStart) && !string.IsNullOrEmpty(currentDoctor.ShiftEnd))
+                                {
+                                    <span class="fw-semibold text-dark small">@FormatTime(currentDoctor.ShiftStart) &ndash; @FormatTime(currentDoctor.ShiftEnd)</span>
+                                    @if (!string.IsNullOrEmpty(currentDoctor.WorkingDays))
+                                    {
+                                        <div class="small text-muted mt-1">@currentDoctor.WorkingDays.Replace(",", " ")</div>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="fw-semibold text-dark small">Not specified</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="p-3 rounded-3" style="background-color: #F5F8FF; border: 1px solid #E5E7EB;">
+                                <span class="small text-muted d-block text-uppercase fw-semibold mb-1">🌐 Languages Spoken</span>
+                                <span class="fw-semibold text-dark small">English, Urdu, Punjabi</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 shadow-sm border-0" style="border-radius: 16px;">
+                    <h5 class="fw-bold text-dark mb-3">Patient Feedback & Reviews (@reviewsList.Count)</h5>
+                    
+                    @if (!reviewsList.Any())
+                    {
+                        <div class="text-center py-4 border border-dashed rounded-3">
+                            <span class="fs-2 d-block mb-1">💬</span>
+                            <p class="text-muted mb-0 small">No clinical evaluation reviews submitted for this practitioner yet.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-3">
+                            @foreach (var rev in reviewsList)
+                            {
+                                <div class="p-3 rounded-3" style="background-color: #F5F8FF;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="fw-bold text-dark mb-0">@(rev.Patient?.Name ?? "Anonymous Patient")</h6>
+                                        <span class="text-muted text-xs" style="font-size: 11px;">@rev.CreatedAt.ToString("dd MMM yyyy")</span>
+                                    </div>
+                                    <div class="d-flex gap-1 mb-2">
+                                        @for (int s = 1; s <= 5; s++)
+                                        {
+                                            <i class="bi @(s <= rev.Rating ? "bi-star-fill" : "bi-star")" style="font-size:13px; color:@(s <= rev.Rating ? "#F59E0B" : "#D1D5DB");"></i>
+                                        }
+                                    </div>
+                                    <p class="text-muted mb-0 small" style="font-size: 13px;">@rev.Comment</p>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card bg-white border-0 shadow-sm p-4 sticky-top" style="border-radius: 16px; top: 24px;">
+                    <span class="text-muted text-xs text-uppercase d-block mb-1" style="font-size: 11px; font-weight: 600;">Consultation Retainer Fee</span>
+                    <h2 class="fw-bold text-success mb-4" style="color: #1A9E52;">Rs. @currentDoctor.ConsultationFee.ToString("N0") <span class="text-muted fs-6 fw-normal">/ Session</span></h2>
+
+                    <a href="/book/@currentDoctor.DoctorID" class="btn text-white w-100 py-3 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2 text-decoration-none" 
+                       style="background-color: #2E75B6; border-radius: 10px;">
+                        Book Appointment
+                    </a>
+                    
+                    <a href="/doctors" class="btn btn-outline-secondary w-100 py-2 fw-semibold mt-3 text-center" style="border-radius: 8px; font-size: 13px; text-decoration: none;">
+                        ✕ Cancel & Return
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int DoctorId { get; set; }
+
+    private Doctor? currentDoctor;
+    private List<Review> reviewsList = new();
+    private string doctorName = "Specialist";
+    private bool isNotFound = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            currentDoctor = await DbContext.Doctors
+                .Include(d => d.User)
+                .FirstOrDefaultAsync(d => d.DoctorID == DoctorId);
+
+            if (currentDoctor == null)
+            {
+                isNotFound = true;
+            }
+            else
+            {
+                doctorName = currentDoctor.User?.Name ?? "Specialist";
+
+                reviewsList = await DbContext.Reviews
+                    .Include(r => r.Patient)
+                    .Where(r => r.DoctorID == DoctorId)
+                    .OrderByDescending(r => r.CreatedAt)
+                    .ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Profile data compilation breakdown: {ex.Message}");
+            isNotFound = true;
+        }
+    }
+    private string FormatTime(string? t)
+    {
+        if (string.IsNullOrEmpty(t)) return "";
+        if (TimeSpan.TryParse(t, out var ts))
+            return DateTime.Today.Add(ts).ToString("h:mm tt");
+        return t;
+    }
+
+}

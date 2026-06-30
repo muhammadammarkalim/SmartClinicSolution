@@ -1,0 +1,116 @@
+﻿@page "/setup-doctor"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Identity
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@inject UserManager<AppUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject ApplicationDbContext DbContext
+
+<div class="container py-5 text-center">
+    <div class="card p-5 shadow mx-auto" style="max-width: 500px; border-radius: 16px;">
+        <h3 class="fw-bold text-primary mb-3">👨‍⚕️ Doctor Account Setup</h3>
+        <p class="text-muted">Click the button below to automatically generate a production-ready dummy doctor account for testing.</p>
+        
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="alert @(message.Contains("successfully") ? "alert-success" : "alert-info") my-3">
+                @message
+            </div>
+        }
+
+        <button class="btn btn-primary py-2 fw-bold w-100 mt-2" @onclick="SeedDoctorAccount" disabled="@isProcessing">
+            @if (isProcessing)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                <span>Generating...</span>
+            }
+            else
+            {
+                <span>Create Dummy Doctor ✔️</span>
+            }
+        </button>
+        
+        <div class="mt-4 p-3 bg-light rounded text-start border">
+            <h6 class="fw-bold text-dark mb-2">🔑 Login Credentials:</h6>
+            <p class="mb-1 small"><strong>Email:</strong> doctor@clinic.com</p>
+            <p class="mb-0 small"><strong>Password:</strong> Doctor@123</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string message = string.Empty;
+    private bool isProcessing = false;
+
+    private async Task SeedDoctorAccount()
+    {
+        isProcessing = true;
+        message = "Checking database roles...";
+
+        try
+        {
+            // 1. Ensure the Doctor role exists
+            if (!await RoleManager.RoleExistsAsync("Doctor"))
+            {
+                await RoleManager.CreateAsync(new IdentityRole("Doctor"));
+            }
+
+            // 2. Check if the dummy doctor user already exists
+            var existingUser = await UserManager.FindByEmailAsync("doctor@clinic.com");
+            if (existingUser != null)
+            {
+                message = "ℹ️ Account already exists! You can log in with doctor@clinic.com using password Doctor@123.";
+                isProcessing = false;
+                return;
+            }
+
+            // 3. Create the Identity AppUser row
+            var doctorUser = new AppUser
+            {
+                UserName = "doctor@clinic.com",
+                Email = "doctor@clinic.com",
+                Name = "Dr. Alexander Fleming",
+                Role = "Doctor",
+                CreatedAt = DateTime.Now
+            };
+
+            var createResult = await UserManager.CreateAsync(doctorUser, "Doctor@123");
+
+            if (createResult.Succeeded)
+            {
+                // Assign the Identity Role
+                await UserManager.AddToRoleAsync(doctorUser, "Doctor");
+
+               // FIXED: Assigns identity string ID to UserID and leaves DoctorID to auto-increment
+var doctorProfile = new Doctor
+{
+    UserID = doctorUser.Id, // Correctly assigns string GUID to your foreign key property
+    Specialty = "General Physician",
+    Qualification = "MBBS, MD - Internal Medicine",
+    ConsultationFee = 1500,
+    Rating = 4.9,
+    IsAvailable = true,
+    Bio = "Dr. Alexander Fleming is a senior medical consultant specializing in diagnostic evaluation, metabolic tracking, and preventative care systems. He has over 12 years of clinic workflow management experience."
+};
+
+                DbContext.Doctors.Add(doctorProfile);
+                await DbContext.SaveChangesAsync();
+
+                message = "✔️ Dummy doctor created successfully! You can now log out of your patient account and sign in using these credentials.";
+            }
+            else
+            {
+                message = "❌ Error creating Identity User: " + string.Join(", ", createResult.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            message = "❌ Fatal Transaction Breakdown: " + ex.Message;
+        }
+
+        isProcessing = false;
+    }
+}

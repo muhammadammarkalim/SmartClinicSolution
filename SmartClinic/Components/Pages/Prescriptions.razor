@@ -1,0 +1,235 @@
+﻿@page "/prescriptions"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Patient")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>My Prescriptions - SmartClinic</PageTitle>
+
+<!-- HEADER BANNER (HIDDEN DURING PRINT) -->
+<div class="sc-topbar no-print">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">💊 My Prescriptions</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">Access, download, and print your verified clinic prescriptions</p>
+    </div>
+</div>
+
+<div class="sc-content">
+    @if (isLoading)
+    {
+        <div class="text-center py-5 no-print">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 small">Syncing pharmaceutical prescription slips...</p>
+        </div>
+    }
+    else if (!prescriptionRecords.Any())
+    {
+        <div class="bg-white text-center py-5 rounded-3 shadow-sm border px-4 no-print" style="border-radius: 16px;">
+            <span class="fs-1 d-block mb-2">💊</span>
+            <h5 class="fw-bold text-dark mb-1">No Active Prescriptions Issued</h5>
+            <p class="text-muted small mb-0">Your formal therapeutic drug charts and prescriptions will load here once assigned by your doctor.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <!-- LEFT PANEL: RX LEDGER SELECTOR LIST (HIDDEN DURING PRINT) -->
+            <div class="col-lg-4 no-print">
+                <h5 class="fw-bold text-dark mb-3" style="font-size: 16px;">Prescription Archives</h5>
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var rx in prescriptionRecords)
+                    {
+                        <button type="button" 
+                                class="btn text-start p-3 rx-selector-btn @(selectedRx?.PrescriptionID == rx.PrescriptionID ? "active" : "")"
+                                @onclick="() => SelectPrescriptionSlip(rx)">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-dark" style="font-size: 13.5px;">📋 Rx-00@rx.PrescriptionID</span>
+                                <span class="text-muted small" style="font-size: 11px;">@rx.Appointment?.AppointmentDateTime.ToString("dd MMM yyyy")</span>
+                            </div>
+                            <span class="text-muted d-block text-truncate" style="font-size: 12px;"><strong>Dr.</strong> @(rx.Appointment?.Doctor?.User?.Name)</span>
+                            <span class="text-muted d-block small text-truncate" style="font-size: 11px; font-style: italic;">@rx.Diagnosis</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: DYNAMIC REPRINT SHEET SLATE CARD -->
+            <div class="col-lg-8">
+                @if (selectedRx != null)
+                {
+                    <div class="card border-0 shadow-sm p-5 prescription-print-sheet bg-white" style="border-radius: 16px;">
+                        
+                        <!-- CLINIC PRESCRIPTION SHEET HEADER -->
+                        <div class="d-flex justify-content-between align-items-start border-bottom pb-4 mb-4">
+                            <div>
+                                <h3 class="fw-bold text-primary-clinic mb-1" style="color: var(--clinic-primary);"><span class="fs-4">🩺</span> MediBook SmartClinic</h3>
+                                <p class="text-muted small mb-0">Phase 6 Medical Hub, Clinic Ring Canvas Road</p>
+                                <p class="text-muted small mb-0">Contact: support@medibook.com | +92 51 111 222</p>
+                            </div>
+                            <div class="text-sm-end">
+                                <h5 class="fw-bold text-dark mb-1" style="font-size: 16px;">MEDICAL PRESCRIPTION</h5>
+                                <span class="text-muted small d-block"><strong>Rx Invoice ID:</strong> #RX-00@selectedRx.PrescriptionID</span>
+                                <span class="text-muted small d-block"><strong>Date:</strong> @selectedRx.Appointment?.AppointmentDateTime.ToString("dd MMMM yyyy")</span>
+                            </div>
+                        </div>
+
+                        <!-- CASE PROFILE SEGMENTS -->
+                        <div class="row g-3 bg-light p-3 rounded-3 mb-4 small border">
+                            <div class="col-sm-6">
+                                <span class="text-secondary d-block text-uppercase fw-bold" style="font-size: 11px;">Patient Profile</span>
+                                <span class="fw-bold text-dark fs-6">@(selectedRx.Appointment?.Patient?.Name ?? "Verified Patient User")</span>
+                                <span class="text-muted d-block" style="font-size: 11px;">Account Unique Hash ID: @selectedRx.Appointment?.PatientID</span>
+                            </div>
+                            <div class="col-sm-6 text-sm-end">
+                                <span class="text-secondary d-block text-uppercase fw-bold" style="font-size: 11px;">Attending Consultant</span>
+                                <span class="fw-bold text-dark fs-6">@(selectedRx.Appointment?.Doctor?.User?.Name)</span>
+                                <span class="text-muted d-block" style="font-size: 11px;">@selectedRx.Appointment?.Doctor?.Specialty — @selectedRx.Appointment?.Doctor?.Qualification</span>
+                            </div>
+                        </div>
+
+                        <!-- CLINICAL DIAGNOSIS STATEMENT BOX -->
+                        <div class="mb-4">
+                            <span class="text-secondary d-block text-uppercase fw-bold mb-1" style="font-size: 11px;">📋 Primary Diagnosis Summary</span>
+                            <div class="p-3 bg-white rounded-3 border fw-semibold text-dark" style="font-size: 14px; background-color: #FAFAFA !important;">
+                                @selectedRx.Diagnosis
+                            </div>
+                        </div>
+
+                        <!-- THERAPEUTIC RX MEDICINES DATA GRID -->
+                        <div class="mb-5">
+                            <span class="text-secondary d-block text-uppercase fw-bold mb-2" style="font-size: 11px;">💊 Directed Rx Medications</span>
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead class="table-light small">
+                                        <tr>
+                                            <th>Medicine Name</th>
+                                            <th>Dosage Pattern</th>
+                                            <th>Frequency Interval</th>
+                                            <th class="text-end">Duration Plan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody style="font-size: 13px;">
+                                        @if (selectedRx.Medicines != null && selectedRx.Medicines.Any())
+                                        {
+                                            @foreach (var med in selectedRx.Medicines)
+                                            {
+                                                <tr>
+                                                    <td class="fw-bold text-dark">@med.MedicineName</td>
+                                                    <td>@med.Dosage</td>
+                                                    <td><span class="badge bg-light text-primary border border-primary-subtle px-2 py-1">@med.Frequency</span></td>
+                                                    <td class="text-end fw-semibold text-secondary">@med.Duration</td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted italic py-3">No individual systemic pharmaceutical records assigned.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- DISCHARGED CLINICAL INSTRUCTIONS SIGNATURE FOOTER -->
+                        <div class="d-flex justify-content-between align-items-end pt-4 border-top">
+                            <div class="small text-muted italic" style="max-width: 400px; font-size: 12px; line-height: 1.4;">
+                                ⚠️ <strong>Clinical Notice:</strong> This document is digitally verified. Take medicines exactly as directed. If side effects persist, contact the Hub desk immediately.
+                            </div>
+                            <div class="text-center px-4 border-top border-dark border-1 pt-2" style="width: 180px;">
+                                <span class="small d-block text-uppercase text-secondary fw-bold" style="font-size: 10px;">Authorized Signature</span>
+                                <span class="fw-semibold text-dark small" style="font-family: 'Courier New', Courier, monospace;">MediBook Verified ✔️</span>
+                            </div>
+                        </div>
+
+                        <!-- INTERACTIVE PRINT TOOLBAR TRIGGER ACTIONS (HIDDEN DURING PRINT) -->
+                        <div class="mt-4 pt-3 border-top text-end no-print">
+                            <button type="button" class="btn text-white px-4 fw-bold shadow-sm" style="background-color: #2E75B6;" @onclick="TriggerPrintSequence">
+                                🖨️ Print Prescription Slip
+                            </button>
+                        </div>
+
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    body { background-color: #F5F8FF !important; }
+    .rx-selector-btn { width: 100%; background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; transition: all 0.15s ease; }
+    .rx-selector-btn:hover { background-color: #F5F8FF; border-color: #2E75B6; }
+    .rx-selector-btn.active { background-color: #EBF3FB !important; border-color: #2E75B6 !important; box-shadow: 0 4px 12px rgba(46,117,182,0.1); }
+    
+    /* ── PRD REQUIREMENT: MEDIA PRINT CSS REMOVAL INJECTIONS ── */
+    @@media print {
+        body { background-color: #FFFFFF !important; padding: 0 !important; margin: 0 !important; }
+        .no-print, header, nav, .sidebar, .navbar, .btn, footer { display: none !important; }
+        .col-lg-8 { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+        .prescription-print-sheet { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; }
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private List<Prescription> prescriptionRecords = new();
+    private Prescription? selectedRx;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            string patientUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            if (!string.IsNullOrEmpty(patientUserId))
+            {
+                // Query medical collections including sub-table relational indices
+                prescriptionRecords = await DbContext.Prescriptions
+                    .Include(p => p.Medicines)
+                    .Include(p => p.Appointment)
+                        .ThenInclude(a => a!.Doctor)
+                        .ThenInclude(d => d!.User)
+                    .Include(p => p.Appointment)
+                        .ThenInclude(a => a!.Patient)
+                    .Where(p => p.Appointment != null && p.Appointment.PatientID == patientUserId)
+                    .OrderByDescending(p => p.PrescriptionID)
+                    .ToListAsync();
+
+                if (prescriptionRecords.Any())
+                {
+                    selectedRx = prescriptionRecords.First();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Prescription compilation breakdown sequence error: {ex.Message}");
+        }
+
+        isLoading = false;
+    }
+
+    private void SelectPrescriptionSlip(Prescription rx)
+    {
+        selectedRx = rx;
+    }
+
+    private async Task TriggerPrintSequence()
+    {
+        // Invoke native web print services asynchronously
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+}

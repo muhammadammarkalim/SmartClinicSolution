@@ -1,0 +1,223 @@
+@page "/doctor/patient-history/{PatientId}"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Doctor")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavManager
+
+<PageTitle>Patient History - SmartClinic</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Doctor Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Doctor Portal</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/doctor/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Practice</span>
+            <a href="/doctor/schedule" class="sc-nav-link"><i class="bi bi-calendar3"></i> My Schedule</a>
+            <a href="/doctor/patients" class="sc-nav-link active"><i class="bi bi-people"></i> My Patients</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+        <div class="sc-topbar">
+            <div>
+                <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">
+                    Patient File — @(patient?.Name ?? "Loading...")
+                </p>
+                <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">Full history, past prescriptions, and profile details</p>
+            </div>
+            <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="() => NavManager.NavigateTo(NavManager.Uri, forceLoad: false)">
+                <i class="bi bi-arrow-left me-1"></i> Back
+            </button>
+        </div>
+
+        <div class="sc-content">
+
+            @if (patient == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border" style="color:var(--clinic-primary);" role="status"></div>
+                </div>
+            }
+            else
+            {
+                <!-- Profile Card -->
+                <div class="sc-card mb-4">
+                    <div class="sc-card-body">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-auto">
+                                <div class="sc-avatar" style="width:68px;height:68px;font-size:24px;">
+                                    @if (!string.IsNullOrEmpty(patient.ProfileImage))
+                                    {
+                                        <img src="@patient.ProfileImage" alt="Patient" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                                    }
+                                    else
+                                    {
+                                        <span>@(patient.Name?.Length > 0 ? patient.Name[0].ToString().ToUpper() : "P")</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col">
+                                <h4 style="font-weight:800;font-size:18px;color:#111827;margin-bottom:4px;">@patient.Name</h4>
+                                <p style="font-size:13px;color:#6B7280;margin-bottom:8px;">@patient.Email</p>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    @if (!string.IsNullOrEmpty(patient.BloodGroup))
+                                    {
+                                        <span class="sc-badge sc-badge-red">🩸 @patient.BloodGroup</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(patient.Gender))
+                                    {
+                                        <span class="sc-badge sc-badge-blue">@patient.Gender</span>
+                                    }
+                                    @if (patient.DateOfBirth.HasValue)
+                                    {
+                                        <span class="sc-badge sc-badge-gray">@patient.DateOfBirth.Value.ToString("dd MMM yyyy")</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(patient.EmergencyPhone))
+                                    {
+                                        <span class="sc-badge sc-badge-amber">🆘 @patient.EmergencyPhone</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-auto text-end">
+                                <div style="font-size:12px;color:#9CA3AF;">Total Visits</div>
+                                <div style="font-size:32px;font-weight:800;color:#111827;line-height:1;">@appointments.Count</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Visit History -->
+                    <div class="col-lg-6">
+                        <div class="sc-card h-100">
+                            <div class="sc-card-header">
+                                <h2 class="sc-card-title"><i class="bi bi-calendar3 me-2 text-primary"></i>Visit History</h2>
+                            </div>
+                            <div style="max-height:500px;overflow-y:auto;">
+                                @if (!appointments.Any())
+                                {
+                                    <div class="sc-card-body text-center text-muted">No visits on record.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var appt in appointments.OrderByDescending(a => a.AppointmentDateTime))
+                                    {
+                                        <div style="padding:14px 22px;border-bottom:1px solid var(--clinic-border);">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <div style="font-weight:600;font-size:14px;color:#111827;">@appt.AppointmentDateTime.ToString("dd MMM yyyy")</div>
+                                                    <div style="font-size:11.5px;color:#9CA3AF;">@appt.AppointmentDateTime.ToString("hh:mm tt")</div>
+                                                </div>
+                                                <span class="sc-badge @GetStatusBadge(appt.Status)">@appt.Status</span>
+                                            </div>
+                                            @if (appt.Prescription != null)
+                                            {
+                                                <div style="margin-top:6px;font-size:12.5px;color:#6B7280;">
+                                                    <strong>Diagnosis:</strong> @appt.Prescription.Diagnosis
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Prescription Archive -->
+                    <div class="col-lg-6">
+                        <div class="sc-card h-100">
+                            <div class="sc-card-header">
+                                <h2 class="sc-card-title"><i class="bi bi-file-medical me-2 text-success"></i>Prescriptions</h2>
+                            </div>
+                            <div style="max-height:500px;overflow-y:auto;">
+                                @if (!prescriptions.Any())
+                                {
+                                    <div class="sc-card-body text-center text-muted">No prescriptions on record.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var rx in prescriptions)
+                                    {
+                                        <div style="padding:14px 22px;border-bottom:1px solid var(--clinic-border);">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="sc-badge sc-badge-blue">Rx-@rx.PrescriptionID</span>
+                                                <span style="font-size:12px;color:#9CA3AF;">@rx.IssuedDate.ToString("dd MMM yyyy")</span>
+                                            </div>
+                                            <div style="font-size:13.5px;font-weight:600;color:#111827;margin-bottom:4px;">@rx.Diagnosis</div>
+                                            @if (!string.IsNullOrEmpty(rx.DoctorNotes))
+                                            {
+                                                <div style="font-size:12.5px;color:#6B7280;margin-bottom:6px;">@rx.DoctorNotes</div>
+                                            }
+                                            @if (rx.Medicines?.Any() == true)
+                                            {
+                                                <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">
+                                                    @foreach (var med in rx.Medicines)
+                                                    {
+                                                        <span class="sc-badge sc-badge-green" style="font-size:11px;">💊 @med.MedicineName</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string PatientId { get; set; } = string.Empty;
+    private AppUser? patient;
+    private List<Appointment> appointments = new();
+    private List<Prescription> prescriptions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        patient = await DbContext.Users.FindAsync(PatientId);
+
+        appointments = await DbContext.Appointments
+            .Include(a => a.Prescription)
+            .Where(a => a.PatientID == PatientId)
+            .OrderByDescending(a => a.AppointmentDateTime)
+            .ToListAsync();
+
+        prescriptions = await DbContext.Prescriptions
+            .Include(p => p.Medicines)
+            .Where(p => p.PatientID == PatientId)
+            .OrderByDescending(p => p.IssuedDate)
+            .ToListAsync();
+    }
+
+    private string GetStatusBadge(string s) => s switch
+    {
+        "Completed" => "sc-badge-green",
+        "Cancelled" => "sc-badge-gray",
+        "Confirmed" or "Booked" => "sc-badge-blue",
+        _ => "sc-badge-amber"
+    };
+}

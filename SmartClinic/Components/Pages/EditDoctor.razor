@@ -1,0 +1,274 @@
+@page "/admin/edit-doctor/{DoctorId:int}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SmartClinic.Models
+@using SmartClinic.Data
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<AppUser> UserManager
+@inject NavigationManager NavManager
+
+<PageTitle>Edit Doctor - SmartClinic Admin</PageTitle>
+
+<div style="max-width:820px; margin:0 auto; padding:28px 16px;">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/admin/doctors" class="sc-btn sc-btn-outline sc-btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        <div>
+            <h1 style="font-size:22px; font-weight:700; margin:0;">Edit Doctor Profile</h1>
+            <p style="font-size:13px; color:#6B7280; margin:0;">Update doctor information and schedule</p>
+        </div>
+    </div>
+
+    <!-- Success / Error messages moved to bottom near actions -->
+
+    @if (doctor == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-3">Loading doctor profile...</p>
+        </div>
+    }
+    else
+    {
+        <div class="sc-card">
+            <div class="sc-card-body">
+
+                <div class="sc-form-section">Professional Details</div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Specialty</label>
+                            <select class="sc-form-control sc-form-select" @bind="doctor.Specialty">
+                                @foreach (var s in specialties)
+                                {
+                                    <option value="@s.Name">@s.Name</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Qualifications</label>
+                            <input class="sc-form-control" @bind="doctor.Qualification" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Years of Experience</label>
+                            <input class="sc-form-control" @bind="doctor.Experience" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">License / PMC Number</label>
+                            <input class="sc-form-control" @bind="doctor.LicenseNumber" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Hospital Affiliation</label>
+                            <input class="sc-form-control" @bind="doctor.HospitalAffiliation" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Languages Spoken</label>
+                            <input class="sc-form-control" @bind="doctor.Languages" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Consultation Fee (Rs.)</label>
+                            <input type="number" class="sc-form-control" min="0" @bind="doctor.ConsultationFee" />
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Bio / About</label>
+                            <textarea class="sc-form-control" rows="3" @bind="doctor.Bio"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sc-form-section">Availability & Schedule</div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Employment Type</label>
+                            <select class="sc-form-control sc-form-select" @bind="doctor.EmploymentType">
+                                <option value="FullTime">Full-Time</option>
+                                <option value="PartTime">Part-Time</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Shift Start</label>
+                            <input type="time" class="sc-form-control" value="@doctor.ShiftStart" @onchange="@(e => doctor.ShiftStart = e.Value?.ToString())" />
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Shift End</label>
+                            <input type="time" class="sc-form-control" value="@doctor.ShiftEnd" @onchange="@(e => doctor.ShiftEnd = e.Value?.ToString())" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="sc-form-group">
+                            <label class="sc-form-label">Appointment Slot Duration</label>
+                            <select class="sc-form-control sc-form-select" @bind="doctor.SlotDurationMinutes">
+                                <option value="15">15 minutes</option>
+                                <option value="20">20 minutes</option>
+                                <option value="30">30 minutes</option>
+                                <option value="45">45 minutes</option>
+                                <option value="60">60 minutes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="sc-form-label">Working Days</label>
+                        <div class="d-flex flex-wrap gap-2 mt-1">
+                            @foreach (var day in allDays)
+                            {
+                                bool selected = selectedDays.Contains(day);
+                                <button type="button"
+                                        class="sc-btn sc-btn-sm @(selected ? "sc-btn-primary" : "sc-btn-outline")"
+                                        @onclick="() => ToggleDay(day)">
+                                    @day
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="sc-form-group" style="width:100%">
+                            <label class="sc-form-label">Available for Bookings</label>
+                            <div class="d-flex gap-3 mt-1">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="avail" id="avYes"
+                                           checked="@doctor.IsAvailable" @onchange="() => doctor.IsAvailable = true" />
+                                    <label class="form-check-label" for="avYes" style="font-size:13.5px;">Yes</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="avail" id="avNo"
+                                           checked="@(!doctor.IsAvailable)" @onchange="() => doctor.IsAvailable = false" />
+                                    <label class="form-check-label" for="avNo" style="font-size:13.5px;">No</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sc-form-section">Profile Photo</div>
+                <div class="sc-form-group mb-4">
+                    <label class="sc-form-label">Photo URL</label>
+                    <input class="sc-form-control" placeholder="https://example.com/doctor-photo.jpg" @bind="doctor.Photo" />
+                    <div style="font-size:12px; color:#6B7280; margin-top:5px;">Enter a direct image URL or leave blank.</div>
+                    @if (!string.IsNullOrEmpty(doctor.Photo))
+                    {
+                        <div class="mt-3 d-flex align-items-center gap-3">
+                            <div class="sc-avatar sc-avatar-lg">
+                                <img src="@doctor.Photo" alt="Preview" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                            </div>
+                            <span style="font-size:13px; color:#6B7280;">Current photo</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex gap-3 justify-content-end border-top pt-4">
+                    <a href="/admin/doctors" class="sc-btn sc-btn-outline">Cancel</a>
+                    <button class="sc-btn sc-btn-primary sc-btn-lg" @onclick="SaveProfile" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-2"></i>
+                            <span>Save Changes</span>
+                        }
+                    </button>
+                </div>
+                @* Show messages near submit area *@
+                <div class="mt-3">
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="sc-alert sc-alert-success"><i class="bi bi-check-circle me-2"></i>@successMessage</div>
+                    }
+                    else if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="sc-alert sc-alert-danger"><i class="bi bi-exclamation-circle me-2"></i>@errorMessage</div>
+                    }
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int DoctorId { get; set; }
+
+    private Doctor? doctor;
+    private List<Specialty> specialties = new();
+    private HashSet<string> selectedDays = new();
+    private readonly List<string> allDays = new() { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    private string? successMessage;
+    private string? errorMessage;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        doctor = await DbContext.Doctors.FindAsync(DoctorId);
+        specialties = await DbContext.Specialties.AsNoTracking().ToListAsync();
+        if (doctor != null && !string.IsNullOrEmpty(doctor.WorkingDays))
+        {
+            selectedDays = new HashSet<string>(doctor.WorkingDays.Split(',', StringSplitOptions.RemoveEmptyEntries));
+        }
+    }
+
+    private void ToggleDay(string day)
+    {
+        if (selectedDays.Contains(day))
+            selectedDays.Remove(day);
+        else
+            selectedDays.Add(day);
+    }
+
+    private async Task SaveProfile()
+    {
+        if (doctor == null) return;
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            var orderedDays = allDays.Where(d => selectedDays.Contains(d)).ToList();
+            doctor.WorkingDays = string.Join(",", orderedDays);
+
+            await DbContext.SaveChangesAsync();
+            successMessage = "Doctor profile updated successfully.";
+            // navigate back to manage doctors after a short delay to allow admin to read the message
+            await Task.Delay(800);
+            NavManager.NavigateTo("/admin/doctors");
+            // Navigate back to doctors management after successful save
+            NavManager.NavigateTo("/admin/doctors");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to save changes. Please try again.";
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

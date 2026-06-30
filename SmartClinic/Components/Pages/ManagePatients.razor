@@ -1,0 +1,347 @@
+@page "/admin/patients"
+@layout SmartClinic.Components.Layout.MainLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Authorization
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Manage Patients - SmartClinic Admin</PageTitle>
+
+<div class="d-flex" style="min-height:100vh; background:#F3F4F6;">
+
+    <!-- Sidebar -->
+    <div class="sc-sidebar d-none d-lg-flex flex-column">
+        <div class="sc-sidebar-brand">
+            <div class="brand-name">SmartClinic</div>
+            <div class="brand-sub">Administration</div>
+        </div>
+        <nav class="sc-nav">
+            <a href="/admin/dashboard" class="sc-nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <span class="sc-nav-section">Management</span>
+            <a href="/admin/doctors" class="sc-nav-link"><i class="bi bi-person-badge"></i> Doctors</a>
+            <a href="/admin/patients" class="sc-nav-link active"><i class="bi bi-people"></i> Patients</a>
+            <a href="/admin/specialties" class="sc-nav-link "><i class="bi bi-tag"></i> Specialties</a>
+            <a href="/admin/revenue" class="sc-nav-link"><i class="bi bi-graph-up-arrow"></i> Revenue</a>
+            <div class="sc-nav-divider border-top mx-3 my-1"></div>
+            <form action="Account/Logout" method="post" class="m-0 p-0">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="sc-logout-btn"><i class="bi bi-box-arrow-left"></i> Logout</button>
+            </form>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="sc-main">
+<div class="sc-topbar">
+    <div>
+        <p class="page-title" style="font-size:20px;font-weight:700;color:#111827;margin:0;">👥 Manage Patients</p>
+        <p class="page-sub" style="font-size:13px;color:#6B7280;margin:0;">View patient profiles, prescription history, and booking records</p>
+    </div>
+    <div class="d-flex gap-3 align-items-center">
+        <span class="sc-badge sc-badge-blue">@patients.Count Total Patients</span>
+    </div>
+</div>
+
+<div class="sc-content">
+
+    <!-- Search/filter bar -->
+    <div class="sc-card mb-4">
+        <div class="sc-card-body" style="padding:14px 22px;">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <div style="flex:1;min-width:200px;position:relative;">
+                    <i class="bi bi-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#9CA3AF;"></i>
+                    <input type="text" class="sc-form-control" style="padding-left:36px;" placeholder="Search by name or email..."
+                           @bind="searchQuery" @bind:event="oninput" />
+                </div>
+                <span style="font-size:13px;color:#6B7280;">@filteredPatients.Count results</span>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" style="color:var(--clinic-primary);" role="status"></div>
+            <p class="text-muted mt-2 small">Loading patient records...</p>
+        </div>
+    }
+    else if (!filteredPatients.Any())
+    {
+        <div class="sc-card text-center py-5">
+            <div class="sc-card-body">
+                <i class="bi bi-people" style="font-size:48px;color:#D1D5DB;"></i>
+                <h5 style="font-weight:700;color:#111827;margin-top:12px;">No Patients Found</h5>
+                <p class="text-muted small">No patients match your search criteria.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="sc-card">
+            <div class="sc-card-header">
+                <h2 class="sc-card-title">Patient Directory</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="sc-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Email</th>
+                            <th>Blood Group</th>
+                            <th>Gender</th>
+                            <th>Joined</th>
+                            <th>Appointments</th>
+                            <th>Prescriptions</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var patient in filteredPatients)
+                        {
+                            var apptCount = patientStats.ContainsKey(patient.Id) ? patientStats[patient.Id].AppointmentCount : 0;
+                            var rxCount = patientStats.ContainsKey(patient.Id) ? patientStats[patient.Id].PrescriptionCount : 0;
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="sc-avatar" style="width:38px;height:38px;font-size:14px;flex-shrink:0;">
+                                            @if (!string.IsNullOrEmpty(patient.ProfileImage))
+                                            {
+                                                <img src="@patient.ProfileImage" alt="Patient" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                                            }
+                                            else
+                                            {
+                                                <span>@(patient.Name?.Length > 0 ? patient.Name[0].ToString().ToUpper() : "P")</span>
+                                            }
+                                        </div>
+                                        <div>
+                                            <div style="font-weight:600;color:#111827;font-size:14px;">@patient.Name</div>
+                                            <div style="font-size:11px;color:#9CA3AF;">ID: @patient.Id[..8]...</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style="font-size:13.5px;color:#374151;">@patient.Email</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(patient.BloodGroup))
+                                    {
+                                        <span class="sc-badge sc-badge-red">@patient.BloodGroup</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color:#9CA3AF;font-size:12px;">—</span>
+                                    }
+                                </td>
+                                <td style="font-size:13px;color:#374151;">@(patient.Gender ?? "—")</td>
+                                <td style="font-size:13px;color:#6B7280;">@patient.CreatedAt.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    <span class="sc-badge sc-badge-blue">@apptCount</span>
+                                </td>
+                                <td>
+                                    <span class="sc-badge @(rxCount > 0 ? "sc-badge-green" : "sc-badge-gray")">@rxCount</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a href="/admin/patient-history/@patient.Id" class="sc-btn sc-btn-outline sc-btn-sm">
+                                            <i class="bi bi-clock-history"></i> History
+                                        </a>
+                                        <button class="sc-btn sc-btn-danger sc-btn-sm" @onclick="() => ConfirmDelete(patient)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Patient Detail Modal -->
+    @if (viewPatient != null)
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;">
+            <div class="sc-card" style="width:100%;max-width:680px;max-height:90vh;overflow-y:auto;">
+                <div class="sc-card-header">
+                    <h2 class="sc-card-title"><i class="bi bi-person-circle me-2"></i>@viewPatient.Name</h2>
+                    <button class="sc-btn sc-btn-outline sc-btn-sm" @onclick="CloseModal"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="sc-card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div style="background:#F9FAFB;border-radius:10px;padding:16px;">
+                                <h6 style="font-size:11px;text-transform:uppercase;color:#6B7280;font-weight:700;margin-bottom:12px;">Profile Info</h6>
+                                <div class="d-flex flex-column gap-2">
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Email:</span> <span style="font-size:13px;font-weight:600;">@viewPatient.Email</span></div>
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Gender:</span> <span style="font-size:13px;">@(viewPatient.Gender ?? "Not set")</span></div>
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Blood Group:</span> <span style="font-size:13px;">@(viewPatient.BloodGroup ?? "Not set")</span></div>
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Date of Birth:</span> <span style="font-size:13px;">@(viewPatient.DateOfBirth?.ToString("dd MMM yyyy") ?? "Not set")</span></div>
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Address:</span> <span style="font-size:13px;">@(viewPatient.Address ?? "Not set")</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div style="background:#F9FAFB;border-radius:10px;padding:16px;">
+                                <h6 style="font-size:11px;text-transform:uppercase;color:#6B7280;font-weight:700;margin-bottom:12px;">Emergency Contact</h6>
+                                <div class="d-flex flex-column gap-2">
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Name:</span> <span style="font-size:13px;">@(viewPatient.EmergencyContact ?? "Not set")</span></div>
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Phone:</span> <span style="font-size:13px;">@(viewPatient.EmergencyPhone ?? "Not set")</span></div>
+                                    <div><span style="font-size:12px;color:#9CA3AF;">Joined:</span> <span style="font-size:13px;">@viewPatient.CreatedAt.ToString("dd MMM yyyy")</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appointments -->
+                    @if (modalAppointments.Any())
+                    {
+                        <h6 style="font-weight:700;font-size:13px;color:#111827;margin-bottom:10px;">Recent Appointments</h6>
+                        <div class="table-responsive mb-4">
+                            <table class="sc-table">
+                                <thead>
+                                    <tr><th>Date</th><th>Doctor</th><th>Status</th><th>Prescription</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var a in modalAppointments.Take(5))
+                                    {
+                                        <tr>
+                                            <td style="font-size:13px;">@a.AppointmentDateTime.ToString("dd MMM yyyy")</td>
+                                            <td style="font-size:13px;">@(a.Doctor?.User?.Name ?? "—")</td>
+                                            <td><span class="sc-badge @GetStatusBadge(a.Status)">@a.Status</span></td>
+                                            <td>@(a.Prescription != null ? a.Prescription.Diagnosis : "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    <div class="d-flex gap-3 justify-content-end">
+                        <a href="/admin/patient-history/@viewPatient.Id" class="sc-btn sc-btn-primary sc-btn-sm">
+                            <i class="bi bi-clock-history me-1"></i> Full History
+                        </a>
+                        <button class="sc-btn sc-btn-outline" @onclick="CloseModal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Delete Confirm Modal -->
+    @if (deleteTarget != null)
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;padding:20px;">
+            <div class="sc-card" style="max-width:400px;width:100%;">
+                <div class="sc-card-body text-center">
+                    <i class="bi bi-exclamation-triangle" style="font-size:40px;color:#EF4444;"></i>
+                    <h5 style="font-weight:700;margin-top:12px;">Delete Patient?</h5>
+                    <p style="color:#6B7280;font-size:14px;">This will permanently delete <strong>@deleteTarget.Name</strong> and all associated records.</p>
+                    <div class="d-flex gap-3 justify-content-center mt-4">
+                        <button class="sc-btn sc-btn-outline" @onclick="() => deleteTarget = null">Cancel</button>
+                        <button class="sc-btn sc-btn-danger" @onclick="ExecuteDelete">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+    </div>
+</div>
+
+@code {
+    private List<AppUser> patients = new();
+    private List<AppUser> filteredPatients = new();
+    private string searchQueryBacking = "";
+    private string searchQuery
+    {
+        get => searchQueryBacking;
+        set
+        {
+            searchQueryBacking = value;
+            FilterPatients();
+        }
+    }
+    private bool isLoading = true;
+    private AppUser? viewPatient;
+    private AppUser? deleteTarget;
+    private List<Appointment> modalAppointments = new();
+    private Dictionary<string, (int AppointmentCount, int PrescriptionCount)> patientStats = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        patients = await DbContext.Users.Where(u => u.Role == "Patient").OrderByDescending(u => u.CreatedAt).ToListAsync();
+
+        var patientIds = patients.Select(p => p.Id).ToList();
+        var appts = await DbContext.Appointments.Include(a => a.Prescription).Where(a => patientIds.Contains(a.PatientID)).ToListAsync();
+
+        patientStats = patients.ToDictionary(
+            p => p.Id,
+            p => (
+                AppointmentCount: appts.Count(a => a.PatientID == p.Id),
+                PrescriptionCount: appts.Count(a => a.PatientID == p.Id && a.Prescription != null)
+            )
+        );
+
+        FilterPatients();
+        isLoading = false;
+    }
+
+    private void FilterPatients()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+            filteredPatients = patients.ToList();
+        else
+        {
+            var q = searchQuery.ToLower();
+            filteredPatients = patients.Where(p =>
+                (p.Name?.ToLower().Contains(q) ?? false) ||
+                (p.Email?.ToLower().Contains(q) ?? false)
+            ).ToList();
+        }
+    }
+
+    private async Task OpenModal(AppUser patient)
+    {
+        viewPatient = patient;
+        modalAppointments = await DbContext.Appointments
+            .Include(a => a.Doctor).ThenInclude(d => d!.User)
+            .Include(a => a.Prescription)
+            .Where(a => a.PatientID == patient.Id)
+            .OrderByDescending(a => a.AppointmentDateTime)
+            .Take(10)
+            .ToListAsync();
+    }
+
+    private void CloseModal() => viewPatient = null;
+
+    private void ConfirmDelete(AppUser patient) => deleteTarget = patient;
+
+    private async Task ExecuteDelete()
+    {
+        if (deleteTarget == null) return;
+        DbContext.Users.Remove(deleteTarget);
+        await DbContext.SaveChangesAsync();
+        deleteTarget = null;
+        await LoadData();
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Completed" => "sc-badge-green",
+        "Cancelled" => "sc-badge-gray",
+        "Confirmed" or "Booked" => "sc-badge-blue",
+        _ => "sc-badge-amber"
+    };
+}

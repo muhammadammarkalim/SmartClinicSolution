@@ -1,0 +1,385 @@
+@page "/doctor/consultation/{AppointmentId:int}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Doctor")]
+
+@using SmartClinic.Models
+@using SmartClinic.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Patient Consultation - MediBook</PageTitle>
+
+<div style="background: #1e3a5f; padding: 24px 40px; display:flex; align-items:center; justify-content:space-between;">
+    <div>
+        <h1 style="font-size:22px; font-weight:700; color:#fff; margin:0;"><i class="bi bi-clipboard2-pulse me-2"></i>Clinical Consultation</h1>
+        <p style="font-size:13px; color:rgba(255,255,255,0.60); margin:4px 0 0;">Document diagnosis, issue prescriptions, and review patient history</p>
+    </div>
+    <a href="/doctor/dashboard" class="sc-btn sc-btn-outline" style="color:#fff; border-color:rgba(255,255,255,0.4);">
+        <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+</div>
+
+<div class="container px-md-5 my-5" style="margin-bottom: 60px;">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 small">Syncing patient appointment file lines...</p>
+        </div>
+    }
+    else if (currentAppointment == null)
+    {
+        <div class="alert alert-danger text-center shadow-sm">
+            <h5>⚠️ Error: Consultation record context link broken or invalid.</h5>
+            <a href="/doctor/dashboard" class="btn btn-secondary mt-2">Return to Dashboard</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="sc-card mb-3">
+                    <div class="sc-card-header">
+                        <h2 class="sc-card-title"><i class="bi bi-person me-2 text-primary"></i>Patient Information</h2>
+                    </div>
+                    <div class="sc-card-body">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="sc-avatar sc-avatar-lg">
+                                @if (!string.IsNullOrEmpty(patientProfile?.ProfileImage))
+                                {
+                                    <img src="@patientProfile.ProfileImage" alt="Patient" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-person-fill" style="font-size:28px;"></i>
+                                }
+                            </div>
+                            <div>
+                                <div style="font-size:15px; font-weight:700;">@(currentAppointment.Patient?.Name)</div>
+                                <div style="font-size:12.5px; color:#6B7280;">@(currentAppointment.Patient?.Email)</div>
+                                @if (!string.IsNullOrEmpty(patientProfile?.PhoneNumber))
+                                {
+                                    <div style="font-size:12.5px; color:#6B7280;">@patientProfile.PhoneNumber</div>
+                                }
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            @if (!string.IsNullOrEmpty(patientProfile?.BloodGroup))
+                            {
+                                <div class="col-auto">
+                                    <span class="sc-badge sc-badge-red"><i class="bi bi-droplet-fill me-1"></i>@patientProfile.BloodGroup</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(patientProfile?.Gender))
+                            {
+                                <div class="col-auto">
+                                    <span class="sc-badge sc-badge-blue">@patientProfile.Gender</span>
+                                </div>
+                            }
+                            @if (patientProfile?.DateOfBirth.HasValue == true)
+                            {
+                                var age = DateTime.Today.Year - patientProfile.DateOfBirth!.Value.Year;
+                                <div class="col-auto">
+                                    <span class="sc-badge sc-badge-gray">Age: @age</span>
+                                </div>
+                            }
+                        </div>
+                        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#9CA3AF; margin-bottom:6px;">Urgency Level</div>
+                        <span class="sc-badge @(currentAppointment.Urgency == "Urgent" ? "sc-badge-red" : currentAppointment.Urgency == "Moderate" ? "sc-badge-amber" : "sc-badge-green")">
+                            @currentAppointment.Urgency
+                        </span>
+                        @if (!string.IsNullOrEmpty(currentAppointment.PatientNotes))
+                        {
+                            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#9CA3AF; margin-top:14px; margin-bottom:6px;">Patient Notes</div>
+                            <div style="font-size:13px; color:#374151; background:#F9FAFB; padding:12px; border-radius:6px; border:1px solid #E5E7EB; font-style:italic;">
+                                "@currentAppointment.PatientNotes"
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Prescription History -->
+                <div class="sc-card">
+                    <div class="sc-card-header">
+                        <h2 class="sc-card-title"><i class="bi bi-clock-history me-2 text-warning"></i>Prescription History</h2>
+                        <span class="sc-badge sc-badge-gray">@patientPrescriptionHistory.Count records</span>
+                    </div>
+                    <div class="sc-card-body p-0">
+                        @if (!patientPrescriptionHistory.Any())
+                        {
+                            <div class="text-center py-4">
+                                <i class="bi bi-clipboard-x" style="font-size:28px; color:#D1D5DB;"></i>
+                                <p class="text-muted small mt-2 mb-0">No previous prescriptions on file.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="max-height:260px; overflow-y:auto;">
+                                @foreach (var rx in patientPrescriptionHistory)
+                                {
+                                    <div style="padding:12px 16px; border-bottom:1px solid #F3F4F6;">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <div style="font-size:12.5px; font-weight:700; color:#111827;">@rx.Diagnosis</div>
+                                            <div style="font-size:11px; color:#9CA3AF; white-space:nowrap; margin-left:8px;">@rx.IssuedDate.ToString("dd MMM yyyy")</div>
+                                        </div>
+                                        <div style="font-size:11.5px; color:#6B7280;">Dr. @(rx.Doctor?.User?.Name ?? "—") — @(rx.Medicines.Count) medicine(s)</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm p-4 bg-white" style="border-radius: 14px;">
+                    
+                    @if (!string.IsNullOrEmpty(alertMessage))
+                    {
+                        <div class="alert alert-warning border-0 small p-3 mb-3" role="alert">
+                            @alertMessage
+                        </div>
+                    }
+
+                    <div class="mb-4">
+                        <label class="form-label text-dark fw-bold" style="font-size: 15px;">Clinical Diagnosis</label>
+                        <textarea class="form-control" rows="3" placeholder="Type primary diagnostic evaluation summaries (e.g. Acute Viral Bronchitis, Migraine headache)..." @bind="diagnosisText"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-dark fw-bold d-block mb-2" style="font-size: 15px;">Medications (Rx)</label>
+                        
+                        <div class="p-3 bg-light rounded-3 border mb-3">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Medicine Name..." @bind="newMedName" />
+                                </div>
+                                <div class="col-md-2">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Dosage (500mg)..." @bind="newMedDosage" />
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select form-select-sm" @bind="newMedFrequency">
+                                        <option value="Once Daily (1-0-0)">Once Daily (1-0-0)</option>
+                                        <option value="Twice Daily (1-0-1)">Twice Daily (1-0-1)</option>
+                                        <option value="Thrice Daily (1-1-1)">Thrice Daily (1-1-1)</option>
+                                        <option value="As Needed (PRN)">As Needed (PRN)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Duration (5 Days)..." @bind="newMedDuration" />
+                                </div>
+                                <div class="col-md-1 text-end">
+                                    <button type="button" class="btn btn-primary btn-sm w-100" style="background-color: #2E75B6;" @onclick="AddMedicineRow">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!medicineItems.Any())
+                        {
+                            <p class="text-muted font-italic text-center small py-3 border border-dashed rounded bg-white">No custom medications compiled yet.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive border rounded bg-white">
+                                <table class="table align-middle custom-table mb-0 small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Medicine</th>
+                                            <th>Dosage</th>
+                                            <th>Frequency</th>
+                                            <th>Duration</th>
+                                            <th class="text-end">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var med in medicineItems)
+                                        {
+                                            <tr>
+                                                <td class="fw-bold text-dark">@med.MedicineName</td>
+                                                <td>@med.Dosage</td>
+                                                <td><span class="badge bg-light text-primary border">@med.Frequency</span></td>
+                                                <td>@med.Duration</td>
+                                                <td class="text-end">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" @onclick="() => RemoveMedicineRow(med)">✕</button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="d-flex justify-content-between pt-3 border-top mt-5">
+                        <a href="/doctor/dashboard" class="btn btn-secondary px-4">← Back to Queue</a>
+                        <button type="button" class="btn btn-success px-5 fw-bold" disabled="@isSubmitting" @onclick="SubmitConsultationSummary">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Saving Rx Record...</span>
+                            }
+                            else
+                            {
+                                <span>Submit Treatment Summary ✔️</span>
+                            }
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    body { background-color: #F5F8FF !important; }
+    .state-urgency { border-radius: 6px; font-size: 11px; font-weight: 600; padding: 4px 8px; }
+    .state-urgency.routine { background-color: #E8F5E9; color: #2E7D32; }
+    .state-urgency.moderate { background-color: #FFF3E0; color: #EF6C00; }
+    .state-urgency.urgent { background-color: #FFEBEE; color: #C62828; }
+    .custom-table th { padding: 10px; font-size: 12px; font-weight: 600; color: #6B7280; }
+    .custom-table td { padding: 10px; border-bottom: 1px solid #F3F4F6; }
+</style>
+
+@code {
+    [Parameter] public int AppointmentId { get; set; }
+
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string alertMessage = string.Empty;
+
+    private Appointment? currentAppointment;
+    private AppUser? patientProfile;
+    private List<Prescription> patientPrescriptionHistory = new();
+    private string diagnosisText = string.Empty;
+
+    private string newMedName = string.Empty;
+    private string newMedDosage = string.Empty;
+    private string newMedFrequency = "Once Daily (1-0-0)";
+    private string newMedDuration = "5 Days";
+
+    private List<PrescriptionMedicine> medicineItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        alertMessage = string.Empty;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            string doctorUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            currentAppointment = await DbContext.Appointments
+                .Include(a => a.Patient)
+                .Include(a => a.Doctor)
+                .FirstOrDefaultAsync(a => a.AppointmentID == AppointmentId);
+
+            if (currentAppointment == null || currentAppointment.Doctor?.UserID != doctorUserId)
+            {
+                currentAppointment = null;
+            }
+            else
+            {
+                // Load patient profile details
+                patientProfile = await DbContext.Users.FindAsync(currentAppointment.PatientID);
+
+                // Load patient prescription history (all previous prescriptions from any doctor)
+                patientPrescriptionHistory = await DbContext.Prescriptions
+                    .Include(p => p.Doctor).ThenInclude(d => d!.User)
+                    .Include(p => p.Medicines)
+                    .Where(p => p.PatientID == currentAppointment.PatientID
+                                && p.AppointmentID != AppointmentId)
+                    .OrderByDescending(p => p.IssuedDate)
+                    .ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error mapping context values: {ex.Message}");
+        }
+
+        isLoading = false;
+    }
+
+    private void AddMedicineRow()
+    {
+        if (string.IsNullOrWhiteSpace(newMedName))
+        {
+            alertMessage = "Medicine name is required.";
+            return;
+        }
+
+        alertMessage = string.Empty;
+
+        var tempMedicine = new PrescriptionMedicine
+        {
+            MedicineName = newMedName.Trim(),
+            Dosage = string.IsNullOrWhiteSpace(newMedDosage) ? "As Directed" : newMedDosage.Trim(),
+            Frequency = newMedFrequency,
+            Duration = newMedDuration.Trim()
+        };
+
+        medicineItems.Add(tempMedicine);
+
+        newMedName = string.Empty;
+        newMedDosage = string.Empty;
+    }
+
+    private void RemoveMedicineRow(PrescriptionMedicine targetedRow)
+    {
+        medicineItems.Remove(targetedRow);
+    }
+
+    private async Task SubmitConsultationSummary()
+    {
+        if (currentAppointment == null) return;
+
+        if (string.IsNullOrWhiteSpace(diagnosisText))
+        {
+            alertMessage = "Please enter a clinical diagnosis before submitting.";
+            return;
+        }
+
+        isSubmitting = true;
+        alertMessage = string.Empty;
+
+        try
+        {
+            // FIXED: Created using exact parameters matched to model properties (IssuedDate, DoctorID, PatientID)
+            var patientPrescription = new Prescription
+            {
+                AppointmentID = AppointmentId,
+                DoctorID = currentAppointment.DoctorID,
+                PatientID = currentAppointment.PatientID,
+                Diagnosis = diagnosisText.Trim(),
+                IssuedDate = DateTime.Now
+            };
+
+            DbContext.Prescriptions.Add(patientPrescription);
+            await DbContext.SaveChangesAsync(); 
+
+            foreach (var med in medicineItems)
+            {
+                med.PrescriptionID = patientPrescription.PrescriptionID;
+                DbContext.PrescriptionMedicines.Add(med);
+            }
+
+            currentAppointment.Status = "Completed";
+            await DbContext.SaveChangesAsync(); 
+
+            // Force a full reload to ensure the dashboard reads the updated appointment status from DB
+            NavManager.NavigateTo("/doctor/dashboard", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            alertMessage = $"Error saving consultation: {ex.Message}";
+            isSubmitting = false;
+        }
+    }
+}
