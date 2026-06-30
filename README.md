@@ -1,8 +1,8 @@
-# SmartClinic ??
+# SmartClinic
 
 **SmartClinic** is a modern, AI-powered healthcare platform built with .NET 9 and Blazor. It connects patients with doctors, provides intelligent symptom checking, manages appointments, and enables seamless healthcare delivery through a user-friendly web application.
 
-## ?? Features
+## Features
 
 ### Core Functionality
 - **Smart Symptom Checker** - AI-powered symptom analysis to help patients find the right specialist
@@ -26,7 +26,7 @@
 - **Video Content Support** - Hero videos and multimedia content
 - **Database-Backed** - SQL Server with Entity Framework Core
 
-## ??? Tech Stack
+## Tech Stack
 
 - **Framework**: .NET 9
 - **Frontend**: Blazor (Interactive Server Components)
@@ -35,7 +35,7 @@
 - **Language**: C# 12+
 - **JSON Support**: Newtonsoft.Json 13.0.4
 
-## ?? Project Structure
+## Project Structure
 
 ```
 SmartClinic/
@@ -68,7 +68,7 @@ SmartClinic/
 ??? SmartClinic.csproj     # Project file
 ```
 
-## ?? Getting Started
+## Getting Started
 
 ### Prerequisites
 - .NET 9 SDK or higher
@@ -111,7 +111,7 @@ SmartClinic/
 
    The application will be available at `https://localhost:7000` (or the configured port).
 
-## ?? NuGet Dependencies
+## NuGet Dependencies
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -121,7 +121,7 @@ SmartClinic/
 | Newtonsoft.Json | 13.0.4 | JSON serialization |
 | System.Net.Http.Json | 10.0.8 | HTTP JSON handling |
 
-## ?? Authentication & Authorization
+## Authentication and Authorization
 
 ### User Registration & Login
 - Email-based authentication
@@ -134,7 +134,7 @@ SmartClinic supports three main roles:
 - **Doctor** - Manage appointments, create prescriptions
 - **Admin** - System administration and user management
 
-## ?? Key Pages
+## Key Pages
 
 - **Home (`/`)** - Landing page with hero section, symptom checker, and doctor listings
 - **Login/Register** - User authentication pages
@@ -145,7 +145,7 @@ SmartClinic supports three main roles:
 - **Admin Dashboard** - Manage users, doctors, and system settings
 - **Doctor Dashboard** - Manage appointments and schedules
 
-## ??? Database Schema
+## Database Schema
 
 ### Core Entities
 - **AppUser** - Extended user with patient/doctor specific fields
@@ -157,7 +157,7 @@ SmartClinic supports three main roles:
 - **DoctorSchedule** - Doctor availability and shifts
 - **DoctorUnavailability** - Doctor blackout dates/times
 
-## ?? Development
+## Development
 
 ### Building the Project
 ```bash
@@ -180,7 +180,7 @@ Apply migrations:
 dotnet ef database update
 ```
 
-## ?? Configuration
+## Configuration
 
 ### appsettings.json
 Key configuration sections:
@@ -195,22 +195,22 @@ dotnet user-secrets init
 dotnet user-secrets set "key" "value"
 ```
 
-## ?? Contributing
+## Contributing
 
 1. Create a feature branch (`git checkout -b feature/YourFeature`)
 2. Commit your changes (`git commit -m 'Add YourFeature'`)
 3. Push to the branch (`git push origin feature/YourFeature`)
 4. Open a Pull Request
 
-## ?? License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## ?? Team
+## Team
 
 **SmartClinic** is developed as part of an academic project for semester-based curriculum.
 
-## ?? Known Issues & Roadmap
+## Known Issues and Roadmap
 
 ### Current Phase
 - Phase 2: Enhanced features and stability improvements
@@ -224,13 +224,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Payment integration
 - Multi-language support
 
-## ?? Support & Contact
+## Support and Contact
 
 For questions or issues:
 - Open an issue on GitHub
 - Contact the development team through the repository
 
-## ?? Acknowledgments
+## Acknowledgments
 
 - .NET 9 documentation
 - Blazor community resources
